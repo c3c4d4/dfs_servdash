@@ -41,8 +41,6 @@ check_password()
 st.set_page_config(page_title="Chamados de Serviços - 2025", layout="wide")
 st.title("Chamados de Serviços - 2025")
 
-from datetime import datetime
-
 # ----------------------------
 # Última Atualização do Arquivo
 # ----------------------------
