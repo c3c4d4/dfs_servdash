@@ -70,7 +70,7 @@ if aba == "📊 Principal":
             unsafe_allow_html=True
         )
 
-    exibir_logo_sidebar("logo_DFS.png")
+    exibir_logo_sidebar("logo_dfs.png")
 
     # ----------------------------
     # Última Atualização do Arquivo
@@ -819,4 +819,3 @@ elif aba == "🗺️ Parque Instalado (Chassis/Estado)":
 
     st.plotly_chart(fig_uf, use_container_width=True)
 
-    
