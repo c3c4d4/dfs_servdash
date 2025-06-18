@@ -49,8 +49,6 @@ timestamp = os.path.getmtime(CAMINHO_ARQUIVO)
 data_modificacao = datetime.fromtimestamp(timestamp) - timedelta(hours=3)
 data_formatada = data_modificacao.strftime("%d/%m/%Y %H:%M")
 st.markdown(f"🕒 **Última atualização do arquivo:** {data_formatada}")
-# Exibe no topo da aplicação
-st.markdown(f"🕒 **Última atualização do arquivo:** {data_modificacao}")
 
 # ----------------------------
 # Carregamento e Limpeza de Dados
