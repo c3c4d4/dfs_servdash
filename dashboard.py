@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import re
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # ----------------------------
 # Procedimentos de Segurança
