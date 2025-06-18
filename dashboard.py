@@ -232,12 +232,17 @@ def exibir_abas(df_alvo, titulo):
         st.subheader(f"Volume por {campo}")
         st.bar_chart(df_alvo[campo].value_counts())
 
-    st.subheader("Distribuição de Aging")
+    st.subheader("Distribuição de Aging (Faixas)")
+
+    aging_categorias = df_alvo["Aging"].dropna().apply(
+        lambda x: "Até 7 dias" if x <= 7 else ("8 a 14 dias" if x <= 14 else "Mais de 14 dias")
+    )
+    contagem = aging_categorias.value_counts().reindex(["Até 7 dias", "8 a 14 dias", "Mais de 14 dias"], fill_value=0)
+
     fig, ax = plt.subplots()
-    ax.hist(df_alvo["Aging"].dropna(), bins=20, color='steelblue', edgecolor='black')
-    ax.set_xlabel("Dias")
-    ax.set_ylabel("Número de Chamados")
-    ax.set_title("Histograma de Aging")
+    cores = ["#A8C0FF", "#78A1FF", "#3A75FF"]  # tons de azul
+    ax.pie(contagem, labels=contagem.index, autopct='%1.1f%%', startangle=90, colors=cores)
+    ax.axis("equal")  # para manter o formato circular
     st.pyplot(fig)
 
 # Exibição por abas
