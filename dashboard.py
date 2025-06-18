@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import re
 import os
 from datetime import datetime, timedelta
+import plotly.express as px
 
 # ----------------------------
 # Procedimentos de Segurança
@@ -16,6 +17,7 @@ def carregar_dados():
     df["Data"] = pd.to_datetime(df["Data"], dayfirst=True, errors="coerce")
     df["Resolvido"] = pd.to_datetime(df["Resolvido"], dayfirst=True, errors="coerce")
     return df
+
 # Carrega os dados apenas uma vez
 df = carregar_dados()
 # 🔐 Senha!
@@ -58,6 +60,20 @@ df["Data"] = pd.to_datetime(df["Data"], dayfirst=True, errors="coerce")
 df["Resolvido"] = pd.to_datetime(df["Resolvido"], dayfirst=True, errors="coerce")
 df["Chassi"] = df["Chassi"].fillna("").astype(str).str.strip().str.replace(".0", "", regex=False).replace("", "N/A")
 df["RTM"] = df["RTM"].apply(lambda x: "SIM" if "RTM" in str(x).upper() else "NÃO")
+
+hoje = pd.Timestamp.now()
+
+df["Aging"] = pd.NA  # ou None
+
+mask_aberto = df["Status"] == "ABERTO"
+mask_fechado = ~mask_aberto
+
+df.loc[mask_aberto, "Aging"] = (hoje - df.loc[mask_aberto, "Data"]).dt.days
+df.loc[mask_fechado, "Aging"] = df.loc[mask_fechado, "Aging2"].astype(float)
+
+df["Aging"] = pd.to_numeric(df["Aging"], errors="coerce")
+
+
 
 # ----------------------------
 # Padronização de Dados
@@ -133,13 +149,6 @@ de_para_mantenedor = {
 df["Proprietário"] = df["Proprietário"].replace(de_para_proprietario)
 df["Mantenedor"] = df["Mantenedor"].replace(de_para_mantenedor).fillna("NÃO INFORMADO")
 df.rename(columns={"SS": "Chamado"}, inplace=True)
-
-# ----------------------------
-# Cálculo de Aging
-# ----------------------------
-hoje = pd.Timestamp.now()
-df["Aging"] = (hoje - df["Data"]).dt.days
-df.loc[df["Status"] != "ABERTO", "Aging"] = None
 
 # ----------------------------
 # Extração de Tags
@@ -232,18 +241,28 @@ def exibir_abas(df_alvo, titulo):
         st.subheader(f"Volume por {campo}")
         st.bar_chart(df_alvo[campo].value_counts())
 
-    st.subheader("Distribuição de Aging (Faixas)")
+    st.subheader("Distribuição de Aging (Dias)")
 
     aging_categorias = df_alvo["Aging"].dropna().apply(
-        lambda x: "Até 7 dias" if x <= 7 else ("8 a 14 dias" if x <= 14 else "Mais de 14 dias")
+        lambda x: "Até 7" if x <= 7 else ("8 a 14" if x <= 14 else ">14")
     )
-    contagem = aging_categorias.value_counts().reindex(["Até 7 dias", "8 a 14 dias", "Mais de 14 dias"], fill_value=0)
+    contagem = aging_categorias.value_counts().reindex(["Até 7", "8 a 14", ">14"], fill_value=0)
 
-    fig, ax = plt.subplots()
-    cores = ["#A8C0FF", "#78A1FF", "#3A75FF"]  # tons de azul
-    ax.pie(contagem, labels=contagem.index, autopct='%1.1f%%', startangle=90, colors=cores)
-    ax.axis("equal")  # para manter o formato circular
-    st.pyplot(fig)
+    fig = px.pie(
+        names=contagem.index,
+        values=contagem.values,
+        color=contagem.index,
+        color_discrete_map={
+            "Até 7": "#A8C0FF",
+            "8 a 14": "#78A1FF",
+            ">14": "#3A75FF"
+        },
+        labels={"value": "Quantidade", "names": "Intervalo de Aging", "color": "Intervalo de Aging"},
+        hole=0.4
+
+        )
+
+    st.plotly_chart(fig, use_container_width=True)
 
 # Exibição por abas
 with tabs[0]:
