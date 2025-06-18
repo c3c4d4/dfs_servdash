@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-import re
+import re as regex
 
 # ----------------------------
 # Procedimentos de Segurança
@@ -135,7 +135,7 @@ df.loc[df["Status"] != "ABERTO", "Aging"] = None
 # ----------------------------
 def extrair_tags(texto):
     if pd.isna(texto): return []
-    tags = re.findall(r"\[(.*?)\]", texto)
+    tags = regex.findall(r"\[(.*?)\]", texto)
     tags = [tag.strip().upper() for tag in tags]
     return list(set(tags)) if tags else ["Sem Tags"]
 
@@ -188,7 +188,7 @@ if termo_pesquisa:
     df_filtrado = df_filtrado[df_filtrado.apply(lambda row: row.astype(str).str.contains(termo_pesquisa, case=False).any(), axis=1)]
     df_exibicao = df_filtrado.copy()
     for col in df_exibicao.columns:
-        df_exibicao[col] = df_exibicao[col].apply(lambda x: re.sub(f"(?i)({re.escape(termo_pesquisa)})", r"*\\1", str(x)))
+        df_exibicao[col] = df_exibicao[col].apply(lambda x: regex.sub(f"(?i)({regex.escape(termo_pesquisa)})", r"*\\1", str(x)))
 else:
     df_exibicao = df_filtrado
 
