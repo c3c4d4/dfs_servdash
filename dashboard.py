@@ -22,7 +22,7 @@ def carregar_dados():
 
 # Carrega os dados apenas uma vez
 df = carregar_dados()
-# 🔐 Senha!
+# Senha!
 def check_password():
     def password_entered():
         if st.session_state["password"] == "Q5sU1P5jcg25":
@@ -53,7 +53,7 @@ def extrair_pais(endereco):
     match = re.findall(r",\s*([A-Z]{2})\s*$", str(endereco).strip())
     return match[-1] if match else None
 
-if aba == "📊 Principal":
+if aba == "Principal":
 
     st.set_page_config(page_title="Chamados de Serviços - 2025", layout="wide")
     st.title("Chamados de Serviços - 2025")
@@ -525,7 +525,7 @@ if aba == "📊 Principal":
         """
     )
 
-elif aba == "🗺️ Parque Instalado (Chassis/Estado)":
+elif aba == "Parque Instalado (Chassis/Estado)":
     st.set_page_config(page_title="Chamados de Serviços - 2025", layout="wide")
     st.title("Chamados de Serviços - 2025")
 
