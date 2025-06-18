@@ -48,7 +48,7 @@ st.title("Chamados de Serviços - 2025")
 # ----------------------------
 CAMINHO_ARQUIVO = "chamados.csv"
 timestamp = os.path.getmtime(CAMINHO_ARQUIVO)
-data_modificacao = datetime.fromtimestamp(timestamp)
+data_modificacao = datetime.fromtimestamp(timestamp) - timedelta(hours=3)
 data_formatada = data_modificacao.strftime("%d/%m/%Y %H:%M")
 st.markdown(f"🕒 **Última atualização do arquivo:** {data_formatada}")
 
