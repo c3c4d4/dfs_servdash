@@ -1,7 +1,9 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-import re as regex
+import re
+import os
+from datetime import datetime
 
 # ----------------------------
 # Procedimentos de Segurança
@@ -38,6 +40,18 @@ check_password()
 # ----------------------------
 st.set_page_config(page_title="Chamados de Serviços - 2025", layout="wide")
 st.title("Chamados de Serviços - 2025")
+
+from datetime import datetime
+
+# ----------------------------
+# Última Atualização do Arquivo
+# ----------------------------
+CAMINHO_ARQUIVO = "chamados.csv"
+timestamp = os.path.getmtime(CAMINHO_ARQUIVO)  # pega o último *modificado*
+data_modificacao = datetime.fromtimestamp(timestamp).strftime("%d/%m/%Y %H:%M")
+
+# Exibe no topo da aplicação
+st.markdown(f"🕒 **Última atualização do arquivo:** {data_modificacao}")
 
 # ----------------------------
 # Carregamento e Limpeza de Dados
@@ -135,7 +149,7 @@ df.loc[df["Status"] != "ABERTO", "Aging"] = None
 # ----------------------------
 def extrair_tags(texto):
     if pd.isna(texto): return []
-    tags = regex.findall(r"\[(.*?)\]", texto)
+    tags = re.findall(r"\[(.*?)\]", texto)
     tags = [tag.strip().upper() for tag in tags]
     return list(set(tags)) if tags else ["Sem Tags"]
 
@@ -188,7 +202,7 @@ if termo_pesquisa:
     df_filtrado = df_filtrado[df_filtrado.apply(lambda row: row.astype(str).str.contains(termo_pesquisa, case=False).any(), axis=1)]
     df_exibicao = df_filtrado.copy()
     for col in df_exibicao.columns:
-        df_exibicao[col] = df_exibicao[col].apply(lambda x: regex.sub(f"(?i)({regex.escape(termo_pesquisa)})", r"*\\1", str(x)))
+        df_exibicao[col] = df_exibicao[col].apply(lambda x: re.sub(f"(?i)({re.escape(termo_pesquisa)})", r"*\1", str(x)))
 else:
     df_exibicao = df_filtrado
 
