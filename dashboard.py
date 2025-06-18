@@ -39,7 +39,7 @@ def check_password():
 
 check_password()
 
-aba = st.sidebar.radio("Selecione a aba:", ["📊 Principal", "🗺️ Parque Instalado (Chassis/Estado)"])
+aba = st.sidebar.radio("Selecione a aba:", ["Principal", "Parque Instalado (Chassis/Estado)"])
 
 # ----------------------------
 # Configuração Inicial
