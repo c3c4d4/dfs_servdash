@@ -48,7 +48,7 @@ st.title("Chamados de Serviços - 2025")
 # ----------------------------
 CAMINHO_ARQUIVO = "chamados.csv"
 timestamp = os.path.getmtime(CAMINHO_ARQUIVO)
-data_modificacao = datetime.fromtimestamp(timestamp) - timedelta(hours=3)
+data_modificacao = datetime.fromtimestamp(timestamp)
 data_formatada = data_modificacao.strftime("%d/%m/%Y %H:%M")
 st.markdown(f"🕒 **Última atualização do arquivo:** {data_formatada}")
 
@@ -72,8 +72,6 @@ df.loc[mask_aberto, "Aging"] = (hoje - df.loc[mask_aberto, "Data"]).dt.days
 df.loc[mask_fechado, "Aging"] = df.loc[mask_fechado, "Aging2"].astype(float)
 
 df["Aging"] = pd.to_numeric(df["Aging"], errors="coerce")
-
-
 
 # ----------------------------
 # Padronização de Dados
@@ -213,60 +211,88 @@ else:
     df_exibicao = df_filtrado
 
 # ----------------------------
-# Abas: Abertos / Fechados
+# Filtro de Status
 # ----------------------------
-tabs = st.tabs(["Chamados Abertos", "Chamados Fechados"])
+status_selecionado = st.sidebar.selectbox(
+    "Status",
+    options=["GERAL", "ABERTO", "FECHADO"],
+    index=1  # "ABERTO" como padrão
+)
 
-# Função para exibir dataframes e gráficos
+# Aplica filtro pelo status
+if status_selecionado == "GERAL":
+    df_status_filtrado = df_exibicao
+else:
+    df_status_filtrado = df_exibicao[df_exibicao["Status"] == status_selecionado]
 
-def exibir_abas(df_alvo, titulo):
-    st.subheader(titulo)
-    st.markdown(f"**Total: {len(df_alvo)} chamados**")
+# Exibe os chamados conforme o status selecionado
+st.subheader(f"Chamados {status_selecionado.capitalize()}")
+st.markdown(f"**Total: {len(df_status_filtrado)} chamados**")
 
-    if df_alvo.empty:
-        st.info("Nenhum chamado encontrado com os filtros aplicados.")
-        return
-
+if df_status_filtrado.empty:
+    st.info("Nenhum chamado encontrado com os filtros aplicados.")
+else:
     colunas_exibir = [
         "Tags", "Chamado", "Chassi", "RTM", "Proprietário", "Mantenedor",
         "Tipo", "Serviço", "Problema", "Resolução", "Cliente",
         "Data", "Sumário", "Aging"
     ]
-    if "Resolvido" in df_alvo.columns:
+    if "Resolvido" in df_status_filtrado.columns:
         colunas_exibir.insert(colunas_exibir.index("Data") + 1, "Resolvido")
 
-    st.dataframe(df_alvo[colunas_exibir])
+    st.dataframe(df_status_filtrado[colunas_exibir])
 
     for campo in ["Proprietário", "Mantenedor", "Tipo"]:
         st.subheader(f"Volume por {campo}")
-        st.bar_chart(df_alvo[campo].value_counts())
+        contagem = df_status_filtrado[campo].value_counts().sort_values(ascending=False)
+        fig_bar = px.bar(
+            x=contagem.index,
+            y=contagem.values,
+            labels={"x": campo, "y": "Quantidade"},
+            color=contagem.values,
+            color_continuous_scale=px.colors.sequential.Blues
+        )
+        fig_bar.update_layout(
+            xaxis_title=campo,
+            yaxis_title="Quantidade",
+            title=f"Distribuição por {campo}",
+            xaxis_tickangle=-45
+        )
+        st.plotly_chart(fig_bar, use_container_width=True)
 
     st.subheader("Distribuição de Aging (Dias)")
-
-    aging_categorias = df_alvo["Aging"].dropna().apply(
+    aging_categorias = df_status_filtrado["Aging"].dropna().apply(
         lambda x: "Até 7" if x <= 7 else ("8 a 14" if x <= 14 else ">14")
     )
-    contagem = aging_categorias.value_counts().reindex(["Até 7", "8 a 14", ">14"], fill_value=0)
+    contagem_aging = aging_categorias.value_counts().reindex(["Até 7", "8 a 14", ">14"], fill_value=0)
 
     fig = px.pie(
-        names=contagem.index,
-        values=contagem.values,
-        color=contagem.index,
+        names=contagem_aging.index,
+        values=contagem_aging.values,
+        color=contagem_aging.index,
         color_discrete_map={
-            "Até 7": "#A8C0FF",
-            "8 a 14": "#78A1FF",
-            ">14": "#3A75FF"
+            "Até 7": "#9ac8e0",
+            "8 a 14": "#3989c2",
+            ">14": "#08306b"
         },
         labels={"value": "Quantidade", "names": "Intervalo de Aging", "color": "Intervalo de Aging"},
         hole=0.4
-
-        )
-
+    )
     st.plotly_chart(fig, use_container_width=True)
 
-# Exibição por abas
-with tabs[0]:
-    exibir_abas(df_exibicao[df_exibicao["Status"] == "ABERTO"], "Chamados Abertos")
-
-with tabs[1]:
-    exibir_abas(df_exibicao[df_exibicao["Status"] != "ABERTO"], "Chamados Fechados")
+    st.subheader("Distribuição de Tags")
+    tags_contagem = df_status_filtrado["Tags"].explode().value_counts().reindex(todas_tags, fill_value=0).sort_values(ascending=False)
+    fig_tags = px.bar(
+        x=tags_contagem.index,
+        y=tags_contagem.values,
+        labels={"x": "Tags", "y": "Quantidade"},
+        color=tags_contagem.values,
+        color_continuous_scale=px.colors.sequential.Blues
+    )
+    fig_tags.update_layout(
+        xaxis_title="Tags",
+        yaxis_title="Quantidade",
+        title="Distribuição de Tags nos Chamados",
+        xaxis_tickangle=-45
+    )
+    st.plotly_chart(fig_tags, use_container_width=True)
