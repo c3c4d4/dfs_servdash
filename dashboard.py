@@ -31,9 +31,21 @@ df = carregar_dados()
 # Padronização de Dados (mapeamentos)
 # (de_para_mantenedor, de_para_especialista devem ser imported/added to data_loader.py and imported here)
 df["Proprietário"] = df["Proprietário"].replace(de_para_proprietario)
-df["Mantenedor"] = df["Mantenedor"].replace(de_para_mantenedor).fillna("NÃO INFORMADO")
 df["Especialista"] = df["Mantenedor"].replace(de_para_especialista).fillna("NÃO INFORMADO")
+df["Mantenedor"] = df["Mantenedor"].replace(de_para_mantenedor).fillna("NÃO INFORMADO")
 df.rename(columns={"SS": "Chamado"}, inplace=True)
+
+# ----------------------------
+# Cálculo da coluna Aging
+# ----------------------------
+hoje = pd.Timestamp.now()
+df["Aging"] = pd.NA
+mask_aberto = df["Status"] == "ABERTO"
+mask_fechado = ~mask_aberto
+df.loc[mask_aberto, "Aging"] = (hoje - pd.to_datetime(df.loc[mask_aberto, "Data"], dayfirst=True, errors="coerce")).dt.days
+if "Aging2" in df.columns:
+    df.loc[mask_fechado, "Aging"] = pd.to_numeric(df.loc[mask_fechado, "Aging2"], errors="coerce")
+df["Aging"] = pd.to_numeric(df["Aging"], errors="coerce")
 
 # ----------------------------
 # Extração de Tags
@@ -69,18 +81,18 @@ if status_selecionado == "GERAL":
 else:
     df_status_filtrado = df_exibicao[df_exibicao["Status"] == status_selecionado]
 
-# ----------------------------
-# Última Atualização do Arquivo
-# ----------------------------
-CAMINHO_ARQUIVO = "chamados.csv"
-timestamp = os.path.getmtime(CAMINHO_ARQUIVO)
-data_modificacao = datetime.fromtimestamp(timestamp) - timedelta(hours=3)
-data_formatada = data_modificacao.strftime("%d/%m/%Y %H:%M")
-st.markdown(f"🕒 **Última atualização do arquivo:** {data_formatada}")
+    # ----------------------------
+    # Última Atualização do Arquivo
+    # ----------------------------
+    CAMINHO_ARQUIVO = "chamados.csv"
+    timestamp = os.path.getmtime(CAMINHO_ARQUIVO)
+    data_modificacao = datetime.fromtimestamp(timestamp) - timedelta(hours=3)
+    data_formatada = data_modificacao.strftime("%d/%m/%Y %H:%M")
+    st.markdown(f"🕒 **Última atualização do arquivo:** {data_formatada}")
 
-# ----------------------------
+    # ----------------------------
 # Exibir Logo
-# ----------------------------
+    # ----------------------------
 def exibir_logo_sidebar(path_logo, largura=200):
     with open(path_logo, "rb") as image_file:
         encoded = base64.b64encode(image_file.read()).decode()
@@ -95,9 +107,9 @@ def exibir_logo_sidebar(path_logo, largura=200):
 
 exibir_logo_sidebar("logo_dfs.png")
 
-# ----------------------------
+    # ----------------------------
 # Principal Tab
-# ----------------------------
+    # ----------------------------
 if aba == "Principal":
     st.title("Chamados de Serviços - 2025")
     st.markdown(f"**Total: {len(df_status_filtrado)} chamados**")
@@ -126,21 +138,21 @@ if aba == "Principal":
         st.subheader("Distribuição de Aging (Dias)")
         st.plotly_chart(vz.pie_chart_aging(df_status_filtrado), use_container_width=True)
 
-        st.subheader("Distribuição de Tags")
-        tags_contagem = (
-            df_status_filtrado["Tags"]
-            .explode()
-            .value_counts()
-            .reindex(todas_tags, fill_value=0)
-            .sort_values(ascending=False)
-        )
-        tags_contagem = tags_contagem[tags_contagem > 0]
-        if not tags_contagem.empty:
+    st.subheader("Distribuição de Tags")
+    tags_contagem = (
+        df_status_filtrado["Tags"]
+        .explode()
+        .value_counts()
+        .reindex(todas_tags, fill_value=0)
+        .sort_values(ascending=False)
+    )
+    tags_contagem = tags_contagem[tags_contagem > 0]
+    if not tags_contagem.empty:
             st.plotly_chart(vz.bar_chart_tags(tags_contagem), use_container_width=True)
-        else:
-            st.info("Nenhuma tag encontrada com valores acima de 0.")
+    else:
+        st.info("Nenhuma tag encontrada com valores acima de 0.")
 
-        st.subheader("Evolução do Aging Médio por Mês")
+    st.subheader("Evolução do Aging Médio por Mês")
         st.plotly_chart(vz.line_chart_aging(df_status_filtrado, "Proprietário"), use_container_width=True)
         st.plotly_chart(vz.line_chart_aging(df_status_filtrado, "Especialista"), use_container_width=True)
 
