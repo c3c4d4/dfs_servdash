@@ -153,8 +153,8 @@ if aba == "Principal":
         st.info("Nenhuma tag encontrada com valores acima de 0.")
 
     st.subheader("Evolução do Aging Médio por Mês")
-        st.plotly_chart(vz.line_chart_aging(df_status_filtrado, "Proprietário"), use_container_width=True)
-        st.plotly_chart(vz.line_chart_aging(df_status_filtrado, "Especialista"), use_container_width=True)
+    st.plotly_chart(vz.line_chart_aging(df_status_filtrado, "Proprietário"), use_container_width=True)
+    st.plotly_chart(vz.line_chart_aging(df_status_filtrado, "Especialista"), use_container_width=True)
 
     st.markdown("---")
     st.markdown(
