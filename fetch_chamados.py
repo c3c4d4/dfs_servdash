@@ -31,7 +31,7 @@ today_date = datetime.now().strftime("%d/%m/%Y")
 data = {
     "calend1": "01/01/2025",
     "calend2": today_date,
-    # "nf":"SIM",
+    "nf":"SIM",
     "excel":"SIM"
 }
 
