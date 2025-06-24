@@ -90,9 +90,9 @@ else:
     data_formatada = data_modificacao.strftime("%d/%m/%Y %H:%M")
     st.markdown(f"🕒 **Última atualização do arquivo:** {data_formatada}")
 
-    # ----------------------------
+# ----------------------------
 # Exibir Logo
-    # ----------------------------
+# ----------------------------
 def exibir_logo_sidebar(path_logo, largura=200):
     with open(path_logo, "rb") as image_file:
         encoded = base64.b64encode(image_file.read()).decode()
@@ -107,9 +107,9 @@ def exibir_logo_sidebar(path_logo, largura=200):
 
 exibir_logo_sidebar("logo_dfs.png")
 
-    # ----------------------------
+# ----------------------------
 # Principal Tab
-    # ----------------------------
+# ----------------------------
 if aba == "Principal":
     st.title("Chamados de Serviços - 2025")
     st.markdown(f"**Total: {len(df_status_filtrado)} chamados**")

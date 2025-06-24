@@ -1,7 +1,12 @@
 import streamlit as st
+import os
+from dotenv import load_dotenv
 
-def check_password(correct_password: str = "Q5sU1P5jcg25") -> None:
+load_dotenv()  # Load environment variables from .env
+
+def check_password() -> None:
     """Checks user password and stops execution if not authenticated."""
+    correct_password = os.getenv("APP_PASSWORD", "")
     def password_entered():
         if st.session_state["password"] == correct_password:
             st.session_state["authenticated"] = True
@@ -13,4 +18,4 @@ def check_password(correct_password: str = "Q5sU1P5jcg25") -> None:
 
     if not st.session_state["authenticated"]:
         st.text_input("Senha:", type="password", on_change=password_entered, key="password")
-        st.stop() 
+        st.stop()
