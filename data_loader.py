@@ -97,6 +97,7 @@ de_para_mantenedor: Dict[str, str] = {
     "Santos, Abraham - MANOEL GONZAGA DOS SANTOS":"MANOEL GONZAGA",
     "Silva, Rodrigo - TECNO PUMP COMERCIO DE PECAS PBOMBAS COMBUSTIVEL LTDA - ME":"TECNO PUMP",
     "Soares, Altevir - JUMPER MATERIAIS E SERVICOS PARA POSTOS DE COMBUSTIVEIS EIRELI ME":"JUMPER",
+    "SALES, - UBERPOSTOS LOGISTICA E EQUIP": "UBERPOSTOS"
 }
 
 de_para_especialista: Dict[str, str] = {
@@ -164,4 +165,5 @@ de_para_especialista: Dict[str, str] = {
     "Santos, Abraham - MANOEL GONZAGA DOS SANTOS":"TBD",
     "Silva, Rodrigo - TECNO PUMP COMERCIO DE PECAS PBOMBAS COMBUSTIVEL LTDA - ME":"TBD",
     "Soares, Altevir - JUMPER MATERIAIS E SERVICOS PARA POSTOS DE COMBUSTIVEIS EIRELI ME":"LUCIANO",
+    "SALES, - UBERPOSTOS LOGISTICA E EQUIP":"LUCAS"
 }
