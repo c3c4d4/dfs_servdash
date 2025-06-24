@@ -204,3 +204,14 @@ elif aba == "Parque Instalado (Chassis/Estado)":
     )
     st.plotly_chart(fig_uf, use_container_width=True)
 
+    # Adiciona a tabela de chamados abaixo do mapa
+    colunas_exibir = [
+        "Tags", "Chamado", "Chassi", "RTM", "Especialista", "Proprietário", "Mantenedor",
+        "Tipo", "Serviço", "Problema", "Resolução", "Cliente",
+        "Data", "Sumário", "Aging"
+    ]
+    if "Resolvido" in df_status_filtrado.columns:
+        colunas_exibir.insert(colunas_exibir.index("Data") + 1, "Resolvido")
+    st.markdown("### Tabela de Chamados")
+    st.dataframe(df_status_filtrado[colunas_exibir])
+
