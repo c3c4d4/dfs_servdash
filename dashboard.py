@@ -44,7 +44,7 @@ mask_aberto = df["Status"] == "ABERTO"
 mask_fechado = ~mask_aberto
 df.loc[mask_aberto, "Aging"] = (hoje - pd.to_datetime(df.loc[mask_aberto, "Data"], dayfirst=True, errors="coerce")).dt.days
 if "Aging2" in df.columns:
-    df.loc[mask_fechado, "Aging"] = pd.to_numeric(df.loc[mask_fechado, "Aging2"], errors="coerce")
+    df.loc[mask_fechado, "Aging"] = pd.to_numeric(df.loc[mask_fechado, "Aging1"], errors="coerce")
 df["Aging"] = pd.to_numeric(df["Aging"], errors="coerce")
 
 # ----------------------------
