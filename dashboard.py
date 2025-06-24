@@ -11,7 +11,7 @@ from auth import check_password
 from filters import sidebar_filters, aplicar_filtros
 import visualization as vz
 
-st.set_page_config(page_title="Chamados de Serviços - 2025", layout="wide")
+st.set_page_config(page_title="Chamados de Serviços", layout="wide")
 
 # ----------------------------
 # Autenticação
@@ -111,7 +111,7 @@ exibir_logo_sidebar("logo_dfs.png")
 # Principal Tab
 # ----------------------------
 if aba == "Principal":
-    st.title("Chamados de Serviços - 2025")
+    st.title("Chamados de Serviços")
     st.markdown(f"**Total: {len(df_status_filtrado)} chamados**")
     if df_status_filtrado.empty:
         st.info("Nenhum chamado encontrado com os filtros aplicados.")
@@ -170,7 +170,7 @@ if aba == "Principal":
 # Parque Instalado Tab
 # ----------------------------
 elif aba == "Parque Instalado (Chassis/Estado)":
-    st.title("Chamados de Serviços - 2025")
+    st.title("Chamados de Serviços")
     st.markdown(f"**Total: {len(df_status_filtrado)} chamados**")
     # Extrai UF
     df_status_filtrado["estado"] = df_status_filtrado["Endereço"].apply(extrair_estado)
