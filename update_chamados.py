@@ -3,7 +3,6 @@ import sys
 import requests
 import pandas as pd
 from datetime import datetime, timedelta
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from rich.console import Console
 from rich.progress import track
 
@@ -31,7 +30,10 @@ HEADERS = {
 
 console = Console()
 
-# Helper to fetch a single month
+# Helper to fetch a single month or partial month
+# Se start_day e end_day forem passados, busca só o intervalo
+# Senão, busca o mês inteiro
+
 def fetch_month(year, month, start_day=1, end_day=None):
     if end_day is None:
         end_day = (datetime(year, month % 12 + 1, 1) - timedelta(days=1)).day if month < 12 else 31
@@ -40,7 +42,6 @@ def fetch_month(year, month, start_day=1, end_day=None):
     data = {
         "calend1": start_date,
         "calend2": end_date,
-        "nf": "SIM",
         "excel": "SIM"
     }
     try:
@@ -61,54 +62,65 @@ def fetch_month(year, month, start_day=1, end_day=None):
         console.print(f"[red]Exception fetching {start_date} - {end_date}: {e}")
         return pd.DataFrame()
 
-def get_months_between(start, end):
-    months = []
-    current = start.replace(day=1)
-    while current <= end:
-        months.append((current.year, current.month))
-        if current.month == 12:
-            current = current.replace(year=current.year+1, month=1)
-        else:
-            current = current.replace(month=current.month+1)
-    return months
-
 def main():
     today = datetime.now()
     oldest_file = "oldest.txt"
-    fechados_file = "chamados_fechados.csv"
-    base_file = "base_chamados.csv"
+    chamados_file = "chamados.csv"  # Base principal: chamados a partir do aberto mais antigo
+    fechados_file = "chamados_fechados.csv"  # Fechados anteriores ao aberto mais antigo
+
     # 1. Determine fetch range
     if not os.path.exists(oldest_file):
         # First run: fetch all 2025
         start = datetime(2025, 1, 1)
         end = today
-        console.print("[bold cyan]No oldest.txt found. Fetching all 2025 chamados month by month in parallel...")
+        console.print("[bold cyan]No oldest.txt found. Fetching all 2025 chamados month by month...")
     else:
         with open(oldest_file) as f:
             oldest_str = f.read().strip()
         start = datetime.strptime(oldest_str, "%d/%m/%Y")
         end = today
-        console.print(f"[bold cyan]oldest.txt found. Fetching chamados from {start.strftime('%d/%m/%Y')} to today month by month in parallel...")
-    months = get_months_between(start, end)
-    # 2. Fetch months in parallel
+        console.print(f"[bold cyan]oldest.txt found. Fetching chamados from {start.strftime('%d/%m/%Y')} to today month by month...")
+
+    # 2. Buscar mês a mês, respeitando o início parcial do primeiro mês
     dfs = []
-    with ThreadPoolExecutor(max_workers=6) as executor:
-        futures = {executor.submit(fetch_month, y, m): (y, m) for y, m in months}
-        for fut in track(as_completed(futures), total=len(futures), description="[green]Downloading months..."):
-            df = fut.result()
-            if not df.empty:
-                dfs.append(df)
+    current = start
+    while current <= end:
+        year = current.year
+        month = current.month
+        if current.day != 1:
+            # Primeiro mês: começa do dia específico
+            start_day = current.day
+        else:
+            start_day = 1
+        # Último mês: termina no dia atual
+        if year == end.year and month == end.month:
+            end_day = end.day
+        else:
+            # Pega até o fim do mês
+            end_day = (datetime(year, month % 12 + 1, 1) - timedelta(days=1)).day if month < 12 else 31
+        console.print(f"[blue]Baixando {year}-{month:02d} de {start_day} até {end_day}")
+        df = fetch_month(year, month, start_day, end_day)
+        if not df.empty:
+            dfs.append(df)
+        # Avança para o próximo mês
+        if month == 12:
+            current = current.replace(year=year+1, month=1, day=1)
+        else:
+            current = current.replace(month=month+1, day=1)
+
     if not dfs:
         console.print("[red]No data fetched. Exiting.")
         sys.exit(1)
     new_df = pd.concat(dfs, ignore_index=True)
-    # 3. Merge with fechados
-    if os.path.exists(fechados_file):
-        fechados_df = pd.read_csv(fechados_file, sep=';', encoding='utf-8-sig')
-        all_df = pd.concat([fechados_df, new_df], ignore_index=True)
+
+    # 3. Merge com chamados.csv (base principal)
+    if os.path.exists(chamados_file):
+        base_chamados = pd.read_csv(chamados_file, sep=';', encoding='utf-8-sig')
+        all_df = pd.concat([base_chamados, new_df], ignore_index=True)
     else:
         all_df = new_df.copy()
-    # 4. Find oldest open chamado
+
+    # 4. Encontrar chamado aberto mais antigo
     if 'Status' in all_df.columns and 'Data' in all_df.columns:
         open_df = all_df[all_df['Status'].str.upper() == 'ABERTO']
         if not open_df.empty:
@@ -124,17 +136,28 @@ def main():
     else:
         console.print("[red]Missing 'Status' or 'Data' columns.")
         oldest_open = today
-    # 5. Save oldest.txt
+
+    # 5. Salvar oldest.txt
     with open(oldest_file, 'w') as f:
         f.write(oldest_open.strftime('%d/%m/%Y'))
-    # 6. Update chamados_fechados.csv with all closed before oldest open
+
+    # 6. Atualizar chamados_fechados.csv com todos fechados antes do mais antigo aberto
     if 'Status' in all_df.columns and 'Data' in all_df.columns:
         closed_df = all_df[(all_df['Status'].str.upper() != 'ABERTO') & (pd.to_datetime(all_df['Data'], dayfirst=True, errors='coerce') < oldest_open)]
-        closed_df.to_csv(fechados_file, sep=';', encoding='utf-8-sig', index=False)
+        # Adiciona ao final do chamados_fechados.csv existente
+        if os.path.exists(fechados_file):
+            fechados_antigos = pd.read_csv(fechados_file, sep=';', encoding='utf-8-sig')
+            fechados_atualizado = pd.concat([fechados_antigos, closed_df], ignore_index=True)
+        else:
+            fechados_atualizado = closed_df.copy()
+        fechados_atualizado.to_csv(fechados_file, sep=';', encoding='utf-8-sig', index=False)
         console.print(f"[green]Updated {fechados_file} with all closed chamados before {oldest_open.strftime('%d/%m/%Y')}")
-    # 7. Save merged base
-    all_df.to_csv(base_file, sep=';', encoding='utf-8-sig', index=False)
-    console.print(f"[bold green]Saved merged base to {base_file}")
+
+    # 7. Atualizar chamados.csv com todos os chamados a partir do chamado aberto mais antigo (inclusive fechados)
+    if 'Data' in all_df.columns:
+        chamados_atuais = all_df[pd.to_datetime(all_df['Data'], dayfirst=True, errors='coerce') >= oldest_open]
+        chamados_atuais.to_csv(chamados_file, sep=';', encoding='utf-8-sig', index=False)
+        console.print(f"[bold green]Saved merged base to {chamados_file}")
 
 if __name__ == "__main__":
     main() 
