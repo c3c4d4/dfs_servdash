@@ -1,0 +1,140 @@
+import os
+import sys
+import requests
+import pandas as pd
+from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from rich.console import Console
+from rich.progress import track
+
+# CONFIG
+URL = "https://dfsrioreporting.doverfs.com/ctrlproducao/pt/helpdeskconsultax.asp"
+HEADERS = {
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+    "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
+    "Cache-Control": "max-age=0",
+    "Connection": "keep-alive",
+    "Content-Type": "application/x-www-form-urlencoded",
+    "Cookie": "usuario%5Fintranet=c%5C-calmeida; idusuario%5Fintranet=3397;",  # Update as needed
+    "Origin": "https://dfsrioreporting.doverfs.com",
+    "Referer": "https://dfsrioreporting.doverfs.com/ctrlproducao/pt/helpdeskconsulta.asp?tipo=NOVO",
+    "Sec-Fetch-Dest": "frame",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "same-origin",
+    "Sec-Fetch-User": "?1",
+    "Upgrade-Insecure-Requests": "1",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0",
+    "sec-ch-ua": '"Microsoft Edge";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"'
+}
+
+console = Console()
+
+# Helper to fetch a single month
+def fetch_month(year, month, start_day=1, end_day=None):
+    if end_day is None:
+        end_day = (datetime(year, month % 12 + 1, 1) - timedelta(days=1)).day if month < 12 else 31
+    start_date = f"{start_day:02d}/{month:02d}/{year}"
+    end_date = f"{end_day:02d}/{month:02d}/{year}"
+    data = {
+        "calend1": start_date,
+        "calend2": end_date,
+        "nf": "SIM",
+        "excel": "SIM"
+    }
+    try:
+        response = requests.post(URL, headers=HEADERS, data=data, timeout=60)
+        if response.status_code == 200:
+            fname = f"tmp_{year}_{month:02d}.html"
+            with open(fname, "wb") as f:
+                f.write(response.content)
+            df = pd.read_html(fname, header=0)[0]
+            os.remove(fname)
+            if len(df) > 0 and 'Data' in df.columns:
+                df = df.drop(df.index[-1])  # Drop totals row if present
+            return df
+        else:
+            console.print(f"[red]Failed to fetch {start_date} - {end_date}: {response.status_code}")
+            return pd.DataFrame()
+    except Exception as e:
+        console.print(f"[red]Exception fetching {start_date} - {end_date}: {e}")
+        return pd.DataFrame()
+
+def get_months_between(start, end):
+    months = []
+    current = start.replace(day=1)
+    while current <= end:
+        months.append((current.year, current.month))
+        if current.month == 12:
+            current = current.replace(year=current.year+1, month=1)
+        else:
+            current = current.replace(month=current.month+1)
+    return months
+
+def main():
+    today = datetime.now()
+    oldest_file = "oldest.txt"
+    fechados_file = "chamados_fechados.csv"
+    base_file = "base_chamados.csv"
+    # 1. Determine fetch range
+    if not os.path.exists(oldest_file):
+        # First run: fetch all 2025
+        start = datetime(2025, 1, 1)
+        end = today
+        console.print("[bold cyan]No oldest.txt found. Fetching all 2025 chamados month by month in parallel...")
+    else:
+        with open(oldest_file) as f:
+            oldest_str = f.read().strip()
+        start = datetime.strptime(oldest_str, "%d/%m/%Y")
+        end = today
+        console.print(f"[bold cyan]oldest.txt found. Fetching chamados from {start.strftime('%d/%m/%Y')} to today month by month in parallel...")
+    months = get_months_between(start, end)
+    # 2. Fetch months in parallel
+    dfs = []
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        futures = {executor.submit(fetch_month, y, m): (y, m) for y, m in months}
+        for fut in track(as_completed(futures), total=len(futures), description="[green]Downloading months..."):
+            df = fut.result()
+            if not df.empty:
+                dfs.append(df)
+    if not dfs:
+        console.print("[red]No data fetched. Exiting.")
+        sys.exit(1)
+    new_df = pd.concat(dfs, ignore_index=True)
+    # 3. Merge with fechados
+    if os.path.exists(fechados_file):
+        fechados_df = pd.read_csv(fechados_file, sep=';', encoding='utf-8-sig')
+        all_df = pd.concat([fechados_df, new_df], ignore_index=True)
+    else:
+        all_df = new_df.copy()
+    # 4. Find oldest open chamado
+    if 'Status' in all_df.columns and 'Data' in all_df.columns:
+        open_df = all_df[all_df['Status'].str.upper() == 'ABERTO']
+        if not open_df.empty:
+            oldest_open = pd.to_datetime(open_df['Data'], dayfirst=True, errors='coerce').min()
+            if pd.isna(oldest_open):
+                console.print("[yellow]No valid open chamado dates found.")
+                oldest_open = today
+            else:
+                console.print(f"[bold magenta]Oldest open chamado: {oldest_open.strftime('%d/%m/%Y')}")
+        else:
+            oldest_open = today
+            console.print("[yellow]No open chamados found.")
+    else:
+        console.print("[red]Missing 'Status' or 'Data' columns.")
+        oldest_open = today
+    # 5. Save oldest.txt
+    with open(oldest_file, 'w') as f:
+        f.write(oldest_open.strftime('%d/%m/%Y'))
+    # 6. Update chamados_fechados.csv with all closed before oldest open
+    if 'Status' in all_df.columns and 'Data' in all_df.columns:
+        closed_df = all_df[(all_df['Status'].str.upper() != 'ABERTO') & (pd.to_datetime(all_df['Data'], dayfirst=True, errors='coerce') < oldest_open)]
+        closed_df.to_csv(fechados_file, sep=';', encoding='utf-8-sig', index=False)
+        console.print(f"[green]Updated {fechados_file} with all closed chamados before {oldest_open.strftime('%d/%m/%Y')}")
+    # 7. Save merged base
+    all_df.to_csv(base_file, sep=';', encoding='utf-8-sig', index=False)
+    console.print(f"[bold green]Saved merged base to {base_file}")
+
+if __name__ == "__main__":
+    main() 
