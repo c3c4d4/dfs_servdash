@@ -189,11 +189,10 @@ media_chamados = chassi_counts.reindex(chassis_filtros, fill_value=0).mean() if 
 rtm_serials = rtm_chassis[rtm_chassis['RTM'] == 'SIM']['NUM_SERIAL']
 media_chamados_rtm = chassi_counts.reindex(rtm_serials, fill_value=0).mean() if not rtm_serials.empty else 0
 
-col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
-col1.metric('Total Bombas (Base)', all_bombas)
-col2.metric('Total Bombas (Filtro)', total_bombas_filtro)
+col2, col3, col4, col5, col6, col7 = st.columns(6)
+col2.metric('Total Bombas', total_bombas_filtro)
 col3.metric('% Sem Partida Inicial', f'{pct_sem_partida:.1f}%')
-col4.metric('% Sem Chamado (exceto PI)', f'{pct_sem_chamado:.1f}%')
+col4.metric('% Sem Chamado', f'{pct_sem_chamado:.1f}%')
 col5.metric('% RTM', f'{pct_rtm:.1f}%')
 col6.metric('Média Chamados/Bomba', f'{media_chamados:.2f}')
 col7.metric('Média Chamados/Bomba RTM', f'{media_chamados_rtm:.2f}')
