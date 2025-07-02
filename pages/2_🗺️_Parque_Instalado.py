@@ -1,3 +1,12 @@
+"""
+Página: Parque Instalado (Mapa e Detalhamento das Bombas)
+
+- Exibe o parque instalado de bombas por estado em mapa interativo.
+- Permite filtrar por RTM, Garantia, Partida Inicial, Ano da NF e Nº de chamados.
+- KPIs, mapa e tabela detalhada são atualizados conforme os filtros.
+- Desenvolvido para análise operacional e estratégica do parque instalado.
+"""
+
 import streamlit as st
 import pandas as pd
 import json
@@ -12,7 +21,8 @@ st.set_page_config(page_title="Parque Instalado - Chamados de Serviços", layout
 
 check_password()
 
-# --- Carregar dados ---
+# --- Carregamento dos dados principais ---
+# Carrega base de bombas (o2c) e chamados (abertos e fechados)
 def load():
     df = pd.read_csv('o2c_unpacked.csv', sep=';', encoding='utf-8', dtype=str)
     df.columns = df.columns.str.strip().str.upper()
@@ -27,17 +37,21 @@ def load_chamados():
         df[col] = df[col].astype(str).str.strip().str.upper()
     return df
 
-# --- Preparar dados principais ---
 o2c = load()
 chamados = load_chamados()
 
-# Criar coluna ANO_NF uma única vez
+# --- Pré-processamento e enriquecimento das bases ---
+# Adiciona colunas de estado, cidade, ano da NF, fim de garantia e status de garantia
+if 'UF' in o2c.columns:
+    o2c['UF'] = o2c['UF'].str.strip().str.upper()
+else:
+    o2c['UF'] = o2c['ESTADO']
+if 'CIDADE' not in o2c.columns:
+    o2c['CIDADE'] = ''
 if 'DT_NUM_NF' in o2c.columns:
     o2c['ANO_NF'] = pd.to_datetime(o2c['DT_NUM_NF'], dayfirst=True, errors='coerce').dt.year
 else:
     o2c['ANO_NF'] = np.nan
-
-# Calcular FIM_GARANTIA e STATUS_GARANTIA em o2c
 
 def calcular_fim_garantia(row):
     try:
