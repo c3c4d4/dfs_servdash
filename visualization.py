@@ -93,4 +93,76 @@ def line_chart_aging(df: pd.DataFrame, campo: str) -> Any:
         markers=True
     )
     fig.update_layout(xaxis_title="Mês", yaxis_title="Aging Médio (dias)")
+    return fig
+
+def bar_chart_aging_proprietario(df: pd.DataFrame) -> Any:
+    df = df.copy()
+    df["AGING"] = pd.to_numeric(df["AGING"], errors="coerce")
+    aging_medio = df.groupby("PROPRIETÁRIO")["AGING"].mean().sort_values()
+    custom_scale = [
+        [0.0, "#0000FF"],
+        [0.5, "#333B66"],
+        [1.0, "#282B3C"]
+    ]
+    fig = px.bar(
+        x=aging_medio.index,
+        y=aging_medio.values,
+        labels={"x": "Proprietário", "y": "Aging Médio (Dias)", "color": "Aging Médio"},
+        color=aging_medio.values,
+        color_continuous_scale=custom_scale
+    )
+    fig.update_layout(
+        xaxis_title="Proprietário",
+        yaxis_title="Aging Médio (Dias)",
+        title="Performance dos Proprietários (Aging Médio)",
+        xaxis_tickangle=-45
+    )
+    return fig
+
+def bar_chart_aging_especialista(df: pd.DataFrame) -> Any:
+    df = df.copy()
+    df["AGING"] = pd.to_numeric(df["AGING"], errors="coerce")
+    aging_medio = df.groupby("ESPECIALISTA")["AGING"].mean().sort_values()
+    custom_scale = [
+        [0.0, "#0000FF"],
+        [0.5, "#333B66"],
+        [1.0, "#282B3C"]
+    ]
+    fig = px.bar(
+        x=aging_medio.index,
+        y=aging_medio.values,
+        labels={"x": "Especialista", "y": "Aging Médio (Dias)", "color": "Aging Médio"},
+        color=aging_medio.values,
+        color_continuous_scale=custom_scale
+    )
+    fig.update_layout(
+        xaxis_title="Especialista",
+        yaxis_title="Aging Médio (Dias)",
+        title="Performance dos Especialistas (Aging Médio)",
+        xaxis_tickangle=-45
+    )
+    return fig
+
+def bar_chart_aging_mantenedor(df: pd.DataFrame) -> Any:
+    df = df.copy()
+    df["AGING"] = pd.to_numeric(df["AGING"], errors="coerce")
+    aging_medio = df.groupby("MANTENEDOR")["AGING"].mean().sort_values()
+    custom_scale = [
+        [0.0, "#0000FF"],
+        [0.5, "#333B66"],
+        [1.0, "#282B3C"]
+    ]
+    fig = px.bar(
+        x=aging_medio.index,
+        y=aging_medio.values,
+        labels={"x": "Mantenedor", "y": "Aging Médio (Dias)", "color": "Aging Médio"},
+        color=aging_medio.values,
+        color_continuous_scale=custom_scale
+    )
+    fig.update_layout(
+        xaxis_title="Mantenedor",
+        yaxis_title="Aging Médio (Dias)",
+        title="Performance dos Mantenedores (Aging Médio)",
+        xaxis_tickangle=-45
+    )
     return fig 
