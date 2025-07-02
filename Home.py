@@ -1,9 +1,6 @@
 """
-Dashboard principal do sistema de Chamados de Serviços.
+DFS ServiceWatch
 
-- Exibe uma página inicial de boas-vindas e instruções.
-- Direciona o usuário para selecionar as páginas de análise no menu lateral.
-- Informações institucionais e de contato do time responsável.
 
 ## Páginas disponíveis
 
@@ -30,13 +27,13 @@ import streamlit as st
 
 # Configuração da página principal
 st.set_page_config(
-    page_title="Chamados de Serviços",
+    page_title="DFS ServiceWatch",
     page_icon="🛠️",
 )
 
 
 # Título e mensagem de boas-vindas
-st.write("# Bem-vindo ao Dashboard de Chamados de Serviços! 🛠️")
+st.write("# Bem-vindo ao DFS ServiceWatch!")
 
 # Instrução para navegação
 st.sidebar.success("Selecione uma página acima.")
@@ -46,7 +43,7 @@ st.markdown(
     """
     Este é um dashboard interativo para análise de chamados de serviços.
     
-    **👈 Selecione uma página no menu lateral** para visualizar diferentes análises e relatórios.
+    **Selecione uma página no menu lateral** para visualizar diferentes análises e relatórios.
     
     ### Sobre
     - Projeto do time de Serviços - Dover Fueling Solutions
