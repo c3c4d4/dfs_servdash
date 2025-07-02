@@ -34,6 +34,7 @@ st.set_page_config(
     page_icon="🛠️",
 )
 
+
 # Título e mensagem de boas-vindas
 st.write("# Bem-vindo ao Dashboard de Chamados de Serviços! 🛠️")
 
