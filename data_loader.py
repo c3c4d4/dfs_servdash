@@ -10,6 +10,31 @@ def carregar_dados(filepath: str = "chamados.csv") -> pd.DataFrame:
     df["RTM"] = df["RTM"].apply(lambda x: "SIM" if "RTM" in str(x).upper() else "NÃO")
     return df
 
+def carregar_dados_merged(
+    filepath1: str = "chamados.csv",
+    filepath2: str = "chamados_fechados.csv"
+) -> pd.DataFrame:
+    """Load, merge, and preprocess chamados and chamados_fechados data from CSVs."""
+    df1 = pd.read_csv(filepath1, sep=";", encoding="utf-8")
+    df2 = pd.read_csv(filepath2, sep=";", encoding="utf-8")
+    df = pd.concat([df1, df2], ignore_index=True)
+    # Ensure 'Data' and 'Resolvido' columns exist
+    for col in ["Data", "Resolvido"]:
+        if col not in df.columns:
+            df[col] = pd.NA
+    # Parse as datetime
+    df["Data"] = pd.to_datetime(df["Data"], dayfirst=True, errors="coerce")
+    df["Resolvido"] = pd.to_datetime(df["Resolvido"], dayfirst=True, errors="coerce")
+    # Clean Chassi
+    df["Chassi"] = df["Chassi"].fillna("").astype(str).str.strip().str.replace(".0", "", regex=False).replace("", "N/A")
+    # RTM logic
+    df["RTM"] = df["RTM"].apply(lambda x: "SIM" if "RTM" in str(x).upper() else "NÃO")
+    # Deduplicate by 'SS' and 'Tarefa', keeping the most recent by 'Data'
+    if all(col in df.columns for col in ["Data", "SS", "Tarefa"]):
+        df = df.sort_values("Data", ascending=False).drop_duplicates(subset=["SS", "Tarefa"], keep="first")
+    df = df.reset_index(drop=True)
+    return df
+
 # Dicionários de substituição (de_para)
 de_para_proprietario: Dict[str, str] = {
     "Oliveira, Cassio Fonseca Farias de (Cassio)": "CÁSSIO OLIVEIRA",

@@ -4,7 +4,7 @@ import os
 from datetime import datetime, timedelta
 import base64
 
-from data_loader import carregar_dados, de_para_proprietario, de_para_mantenedor, de_para_especialista
+from data_loader import carregar_dados_merged, de_para_proprietario, de_para_mantenedor, de_para_especialista
 from utils import extrair_tags
 from auth import check_password
 from filters import sidebar_filters, aplicar_filtros
@@ -14,7 +14,7 @@ st.set_page_config(page_title="Principal - Chamados de Serviços", layout="wide"
 
 check_password()
 
-df = carregar_dados()
+df = carregar_dados_merged()
 df["Proprietário"] = df["Proprietário"].replace(de_para_proprietario)
 df["Especialista"] = df["Mantenedor"].replace(de_para_especialista).fillna("NÃO INFORMADO")
 df["Mantenedor"] = df["Mantenedor"].replace(de_para_mantenedor).fillna("NÃO INFORMADO")
