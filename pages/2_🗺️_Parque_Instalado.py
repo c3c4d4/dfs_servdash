@@ -245,6 +245,7 @@ for _, row in filtered_filtros.iterrows():
         'RTM': row.get('RTM', ''),
         'NF': row.get('NUM_NF', ''),
         'DATA_NF': row.get('DT_NUM_NF', ''),
+        'CLIENTE': row.get('CLIENTE', ''),
         'FIM_GARANTIA': row.get('FIM_GARANTIA', ''),
         'GARANTIA': row.get('STATUS_GARANTIA', ''),
         'UF': row.get('UF', ''),
@@ -256,7 +257,7 @@ for _, row in filtered_filtros.iterrows():
 df_tabela = pd.DataFrame(data)
 
 # Reordenar colunas para QTD_CHAMADOS antes de CHAMADOS
-cols = ['CHASSI', 'RTM', 'NF', 'DATA_NF', 'FIM_GARANTIA', 'GARANTIA', 'UF', 'CIDADE', 'QTD_CHAMADOS', 'PARTIDA INICIAL', 'CHAMADOS']
+cols = ['CHASSI', 'CLIENTE', 'RTM', 'NF', 'DATA_NF', 'FIM_GARANTIA', 'GARANTIA', 'UF', 'CIDADE', 'QTD_CHAMADOS', 'PARTIDA INICIAL', 'CHAMADOS']
 df_tabela = df_tabela[cols]
 
 st.markdown('### Bombas Instaladas')
