@@ -154,9 +154,9 @@ def main():
     df['MANTENEDOR'] = df['MANTENEDOR'].replace(de_para_mantenedor).fillna('')
     df['INÍCIO'] = df['DATA']
     df['FIM'] = df['RESOLVIDO']
-    dt_inicio = pd.to_datetime(df['INÍCIO'], dayfirst=True, errors='coerce').dt.date
-    dt_fim = pd.to_datetime(df['FIM'], dayfirst=True, errors='coerce').dt.date
-    hoje = pd.Timestamp.now().normalize().date()
+    dt_inicio = pd.to_datetime(df['INÍCIO'], dayfirst=True, errors='coerce').dt.normalize()
+    dt_fim = pd.to_datetime(df['FIM'], dayfirst=True, errors='coerce').dt.normalize()
+    hoje = pd.Timestamp.now().normalize()
     dt_fim_corrigido = dt_fim.copy()
     mask_aberto_sem_fim = (df['STATUS'] == 'ABERTO') & (df['FIM'].isna() | (df['FIM'] == ''))
     dt_fim_corrigido[mask_aberto_sem_fim] = hoje
@@ -195,8 +195,8 @@ def main():
     )
     df_display = df_filtrado[columns].copy()
     mask_aging_vazio = df_display['AGING'].isna() & df_display['INÍCIO'].notna() & (df_display['INÍCIO'] != '')
-    dt_inicio_safeguard = pd.to_datetime(df_display.loc[mask_aging_vazio, 'INÍCIO'], dayfirst=True, errors='coerce').dt.date
-    dt_fim_safeguard = pd.to_datetime(df_display.loc[mask_aging_vazio, 'FIM'], dayfirst=True, errors='coerce').dt.date
+    dt_inicio_safeguard = pd.to_datetime(df_display.loc[mask_aging_vazio, 'INÍCIO'], dayfirst=True, errors='coerce').dt.normalize()
+    dt_fim_safeguard = pd.to_datetime(df_display.loc[mask_aging_vazio, 'FIM'], dayfirst=True, errors='coerce').dt.normalize()
     dt_fim_safeguard = dt_fim_safeguard.fillna(hoje)
     aging_safeguard = [
         (f - i).days if pd.notna(i) and pd.notna(f) else pd.NA
