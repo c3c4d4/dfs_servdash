@@ -7,6 +7,7 @@ Página: Parque Instalado (Mapa e Detalhamento das Bombas)
 - Desenvolvido para análise operacional e estratégica do parque instalado.
 """
 
+
 import streamlit as st
 import pandas as pd
 import json
@@ -23,18 +24,34 @@ check_password()
 
 # --- Carregamento dos dados principais ---
 # Carrega base de bombas (o2c) e chamados (abertos e fechados)
+
+# --- Caching for faster reloads ---
+@st.cache_data(show_spinner=False)
 def load():
     df = pd.read_csv('o2c_unpacked.csv', sep=';', encoding='utf-8', dtype=str)
     df.columns = df.columns.str.strip().str.upper()
     for col in df.columns:
         df[col] = df[col].astype(str).str.strip().str.upper()
+    # Optimize dtypes for filtering and ensure '' is a category
+    for cat_col in ['UF', 'RTM', 'STATUS_GARANTIA', 'CIDADE']:
+        if cat_col in df.columns:
+            df[cat_col] = df[cat_col].astype('category')
+            if '' not in df[cat_col].cat.categories:
+                df[cat_col] = df[cat_col].cat.add_categories([''])
     return df
 
+@st.cache_data(show_spinner=False)
 def load_chamados():
     df = carregar_dados_merged()
     df.columns = df.columns.str.strip().str.upper()
     for col in df.columns:
         df[col] = df[col].astype(str).str.strip().str.upper()
+    # Optimize dtypes for filtering and ensure '' is a category
+    for cat_col in ['CHASSI', 'SERVIÇO', 'SS']:
+        if cat_col in df.columns:
+            df[cat_col] = df[cat_col].astype('category')
+            if '' not in df[cat_col].cat.categories:
+                df[cat_col] = df[cat_col].cat.add_categories([''])
     return df
 
 o2c = load()
@@ -98,17 +115,26 @@ all_bombas = o2c['NUM_SERIAL'].dropna().nunique()
 total_bombas = filtered['NUM_SERIAL'].nunique()
 filtered_chassis = set(filtered['NUM_SERIAL'])
 
-# Filtrar chamados para conter apenas os chassis presentes em filtered
-chamados_filtrados = chamados[chamados['CHASSI'].isin(filtered_chassis)].copy()
 
-# Index e sets auxiliares baseados apenas nos dados filtrados
-chamados_filtrados['SERVIÇO'] = chamados_filtrados['SERVIÇO'].fillna('')
-chamados_filtrados['CHASSI'] = chamados_filtrados['CHASSI'].fillna('')
-chamados_filtrados['SS'] = chamados_filtrados['SS'].fillna('')
-chamados_por_chassi_dict = chamados_filtrados.groupby('CHASSI')['SS'].apply(list).to_dict()
-servico_partida = chamados_filtrados[chamados_filtrados['SERVIÇO'].str.contains('PARTIDA INICIAL', na=False)]
-partida_dict = servico_partida.groupby('CHASSI')['SS'].apply(list).to_dict()
-chassi_counts = chamados_filtrados.groupby('CHASSI').size()
+# --- Precompute dicts and sets for fast filtering ---
+@st.cache_data(show_spinner=False)
+def precompute_chamados_dicts(chamados):
+    chamados = chamados.copy()
+    # Ensure '' is a category before fillna
+    for cat_col in ['SERVIÇO', 'CHASSI', 'SS']:
+        if cat_col in chamados.columns and '' not in chamados[cat_col].cat.categories:
+            chamados[cat_col] = chamados[cat_col].cat.add_categories([''])
+    chamados['SERVIÇO'] = chamados['SERVIÇO'].fillna('')
+    chamados['CHASSI'] = chamados['CHASSI'].fillna('')
+    chamados['SS'] = chamados['SS'].fillna('')
+    chamados_por_chassi_dict = chamados.groupby('CHASSI')['SS'].apply(list).to_dict()
+    servico_partida = chamados[chamados['SERVIÇO'].str.contains('PARTIDA INICIAL', na=False)]
+    partida_set = set(servico_partida['CHASSI'])
+    chassi_counts = chamados.groupby('CHASSI').size()
+    chassi_com_chamado = set(chamados[~chamados['SERVIÇO'].str.contains('PARTIDA INICIAL', na=False)]['CHASSI'])
+    return chamados_por_chassi_dict, partida_set, chassi_counts, chassi_com_chamado
+
+chamados_por_chassi_dict, partida_set, chassi_counts, chassi_com_chamado = precompute_chamados_dicts(chamados)
 
 # Use filtered_filtros para KPIs, mapa e tabela
 # --- Sidebar Filtros ---
@@ -148,9 +174,9 @@ if garantia_sel != 'TODOS':
     filtered_filtros = filtered_filtros[filtered_filtros['STATUS_GARANTIA'] == garantia_sel]
 if partida_sel != 'TODOS':
     if partida_sel == 'SIM':
-        filtered_filtros = filtered_filtros[filtered_filtros['NUM_SERIAL'].isin(partida_dict.keys())]
+        filtered_filtros = filtered_filtros[filtered_filtros['NUM_SERIAL'].isin(partida_set)]
     else:
-        filtered_filtros = filtered_filtros[~filtered_filtros['NUM_SERIAL'].isin(partida_dict.keys())]
+        filtered_filtros = filtered_filtros[~filtered_filtros['NUM_SERIAL'].isin(partida_set)]
 filtered_filtros = filtered_filtros[(filtered_filtros['ANO_NF'] >= ano_range[0]) & (filtered_filtros['ANO_NF'] <= ano_range[1])]
 
 # Filtro por número de chamados
@@ -168,15 +194,14 @@ all_bombas = o2c['NUM_SERIAL'].dropna().nunique()
 chassis_filtros = filtered_filtros['NUM_SERIAL'].dropna().unique()
 total_bombas_filtro = len(chassis_filtros)
 
-# % sem partida inicial
-chassi_set_partida = set(partida_dict.keys())
-sem_partida = [ch not in chassi_set_partida for ch in chassis_filtros]
-pct_sem_partida = 100 * sum(sem_partida) / total_bombas_filtro if total_bombas_filtro else 0
 
-# % sem chamado (exceto PI)
-chassi_com_chamado = set(chamados_filtrados[~chamados_filtrados['SERVIÇO'].str.contains('PARTIDA INICIAL', na=False)]['CHASSI'])
-sem_chamado = [ch not in chassi_com_chamado for ch in chassis_filtros]
-pct_sem_chamado = 100 * sum(sem_chamado) / total_bombas_filtro if total_bombas_filtro else 0
+# % sem partida inicial
+sem_partida = ~pd.Series(chassis_filtros).isin(partida_set)
+pct_sem_partida = 100 * sem_partida.sum() / total_bombas_filtro if total_bombas_filtro else 0
+
+# % COM chamado (exceto PI)
+com_chamado = pd.Series(chassis_filtros).isin(chassi_com_chamado)
+pct_com_chamado = 100 * com_chamado.sum() / total_bombas_filtro if total_bombas_filtro else 0
 
 # % RTM
 rtm_chassis = filtered_filtros.drop_duplicates('NUM_SERIAL')
@@ -192,7 +217,7 @@ media_chamados_rtm = chassi_counts.reindex(rtm_serials, fill_value=0).mean() if 
 col2, col3, col4, col5, col6, col7 = st.columns(6)
 col2.metric('Total Bombas', total_bombas_filtro)
 col3.metric('% Sem Partida Inicial', f'{pct_sem_partida:.1f}%')
-col4.metric('% Sem Chamado', f'{pct_sem_chamado:.1f}%')
+col4.metric('% Com Chamado', f'{pct_com_chamado:.1f}%')
 col5.metric('% RTM', f'{pct_rtm:.1f}%')
 col6.metric('Média Chamados/Bomba', f'{media_chamados:.2f}')
 col7.metric('Média Chamados/Bomba RTM', f'{media_chamados_rtm:.2f}')
@@ -234,29 +259,23 @@ def partida_inicial_info(chassi):
 def chamados_lista(chassi):
     return ', '.join(chamados_por_chassi_dict.get(chassi, []))
 
-# Montar tabela
-data = []
-for _, row in filtered_filtros.iterrows():
-    chassi = row['NUM_SERIAL']
-    qtd_chamados = chassi_counts.get(chassi, 0)
-    data.append({
-        'CHASSI': chassi,
-        'RTM': row.get('RTM', ''),
-        'NF': row.get('NUM_NF', ''),
-        'DATA_NF': row.get('DT_NUM_NF', ''),
-        'CLIENTE': row.get('CLIENTE', ''),
-        'FIM_GARANTIA': row.get('FIM_GARANTIA', ''),
-        'GARANTIA': row.get('STATUS_GARANTIA', ''),
-        'UF': row.get('UF', ''),
-        'CIDADE': row.get('CIDADE', ''),
-        'QTD_CHAMADOS': qtd_chamados,
-        'PARTIDA INICIAL': partida_inicial_info(chassi),
-        'CHAMADOS': chamados_lista(chassi),
-    })
-df_tabela = pd.DataFrame(data)
 
-# Reordenar colunas para QTD_CHAMADOS antes de CHAMADOS
-cols = ['CHASSI', 'CLIENTE', 'RTM', 'NF', 'DATA_NF', 'FIM_GARANTIA', 'GARANTIA', 'UF', 'CIDADE', 'QTD_CHAMADOS', 'PARTIDA INICIAL', 'CHAMADOS']
+# Montar tabela de forma vetorizada para performance
+df_tabela = filtered_filtros.copy()
+df_tabela['QTD_CHAMADOS'] = df_tabela['NUM_SERIAL'].map(chassi_counts).fillna(0).astype(int)
+df_tabela['PARTIDA INICIAL'] = df_tabela['NUM_SERIAL'].isin(partida_set).map({True: 'SIM', False: 'NÃO'})
+df_tabela['CHAMADOS'] = df_tabela['NUM_SERIAL'].map(chamados_por_chassi_dict).apply(lambda x: ', '.join(x) if isinstance(x, list) else '')
+
+
+# Ajuste de nomes de colunas para evitar KeyError
+col_map = {
+    'CHASSI': 'NUM_SERIAL',
+    'NF': 'NUM_NF',
+    'DATA_NF': 'DT_NUM_NF',
+}
+cols = [col_map.get(c, c) for c in ['CHASSI', 'CLIENTE', 'RTM', 'NF', 'DATA_NF', 'FIM_GARANTIA', 'GARANTIA', 'UF', 'CIDADE', 'QTD_CHAMADOS', 'PARTIDA INICIAL', 'CHAMADOS']]
+# Renomear colunas temporariamente para exibição
+df_tabela = df_tabela.rename(columns={v: k for k, v in col_map.items() if v in df_tabela.columns})
 df_tabela = df_tabela[cols]
 
 st.markdown('### Bombas Instaladas')
