@@ -13,7 +13,7 @@ DFS ServiceWatch
 ### 2. Parque Instalado (Mapa)
 - Visualização do parque instalado de bombas por estado em mapa interativo.
 - Filtros avançados: RTM, Garantia, Partida Inicial, Ano da NF, Nº de chamados.
-- KPIs de cobertura, % sem partida, % sem chamado, % RTM, médias de chamados.
+- KPIs de cobertura, % com partida, % com chamado, % RTM, médias de chamados.
 - Tabela detalhada com todos os dados das bombas filtradas.
 - Ideal para análise estratégica, cobertura e histórico de atuação.
 
@@ -62,7 +62,7 @@ st.markdown(
     **2. Parque Instalado (Mapa):**
     - Visualize o parque instalado de bombas por estado em mapa interativo.
     - Use filtros avançados: RTM, Garantia, Partida Inicial, Ano da NF, Nº de chamados.
-    - Veja KPIs de cobertura, % sem partida, % sem chamado, % RTM, médias de chamados.
+    - Veja KPIs de cobertura, % com partida, % com chamado, % RTM, médias de chamados.
     - Tabela detalhada com todos os dados das bombas filtradas.
     - Ideal para análise estratégica, cobertura e histórico de atuação.
     """

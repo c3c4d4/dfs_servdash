@@ -2,5 +2,11 @@ streamlit
 pandas
 matplotlib
 plotly
-dotenv
+python-dotenv
 rich
+numpy
+pyarrow
+fastparquet
+dask
+numba
+psutil

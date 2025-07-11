@@ -7,14 +7,15 @@ Página: Parque Instalado (Mapa e Detalhamento das Bombas)
 - Desenvolvido para análise operacional e estratégica do parque instalado.
 """
 
-
 import streamlit as st
 import pandas as pd
 import json
-from data_loader import carregar_dados_merged, de_para_proprietario, de_para_mantenedor, de_para_especialista
+import plotly.express as px
+from data_loader import carregar_dados_merged, carregar_o2c, process_o2c_data, carregar_base_erros_rtm
 from utils import extrair_estado
 from auth import check_password
-import plotly.express as px
+from filters import sidebar_filters_parque, aplicar_filtros_parque, sidebar_filters_rtm_errors, aplicar_filtros_rtm_errors
+import visualization as vz
 import numpy as np
 from datetime import datetime
 
@@ -22,263 +23,417 @@ st.set_page_config(page_title="Parque Instalado - Chamados de Serviços", layout
 
 check_password()
 
-# --- Carregamento dos dados principais ---
-# Carrega base de bombas (o2c) e chamados (abertos e fechados)
-
-# --- Caching for faster reloads ---
-@st.cache_data(show_spinner=False)
-def load():
-    df = pd.read_csv('o2c_unpacked.csv', sep=';', encoding='utf-8', dtype=str)
-    df.columns = df.columns.str.strip().str.upper()
-    for col in df.columns:
-        df[col] = df[col].astype(str).str.strip().str.upper()
-    # Optimize dtypes for filtering and ensure '' is a category
+# --- Carregamento dos dados principais com otimizações ---
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_o2c_data():
+    """Load O2C data with optimizations."""
+    df = carregar_o2c()
+    
+    # Optimize dtypes for filtering
     for cat_col in ['UF', 'RTM', 'STATUS_GARANTIA', 'CIDADE']:
         if cat_col in df.columns:
             df[cat_col] = df[cat_col].astype('category')
             if '' not in df[cat_col].cat.categories:
                 df[cat_col] = df[cat_col].cat.add_categories([''])
+    
     return df
 
-@st.cache_data(show_spinner=False)
-def load_chamados():
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_chamados_data():
+    """Load chamados data with optimizations."""
     df = carregar_dados_merged()
     df.columns = df.columns.str.strip().str.upper()
-    for col in df.columns:
-        df[col] = df[col].astype(str).str.strip().str.upper()
-    # Optimize dtypes for filtering and ensure '' is a category
+    
+    # Vectorized string operations
+    for col in df.select_dtypes(include=['object']).columns:
+        df[col] = df[col].str.strip().str.upper()
+    
+    # Optimize dtypes for filtering
     for cat_col in ['CHASSI', 'SERVIÇO', 'SS']:
         if cat_col in df.columns:
             df[cat_col] = df[cat_col].astype('category')
             if '' not in df[cat_col].cat.categories:
                 df[cat_col] = df[cat_col].cat.add_categories([''])
+    
     return df
 
-o2c = load()
-chamados = load_chamados()
+# Load data
+o2c = load_o2c_data()
+chamados = load_chamados_data()
+erros_rtm = carregar_base_erros_rtm()
 
 # --- Pré-processamento e enriquecimento das bases ---
-# Adiciona colunas de estado, cidade, ano da NF, fim de garantia e status de garantia
-if 'UF' in o2c.columns:
-    o2c['UF'] = o2c['UF'].str.strip().str.upper()
-else:
-    o2c['UF'] = o2c['ESTADO']
-if 'CIDADE' not in o2c.columns:
-    o2c['CIDADE'] = ''
-if 'DT_NUM_NF' in o2c.columns:
-    o2c['ANO_NF'] = pd.to_datetime(o2c['DT_NUM_NF'], dayfirst=True, errors='coerce').dt.year
-else:
-    o2c['ANO_NF'] = np.nan
+@st.cache_data(ttl=1800, show_spinner=False)
+def preprocess_o2c_data(o2c_df: pd.DataFrame):
+    """Preprocess O2C data with optimizations."""
+    df = o2c_df.copy()
+    
+    # Add state column
+    if 'UF' in df.columns:
+        df['UF'] = df['UF'].str.strip().str.upper()
+    else:
+        df['UF'] = df['ESTADO']
+    
+    if 'CIDADE' not in df.columns:
+        df['CIDADE'] = ''
+    
+    # Add year column
+    if 'DT_NUM_NF' in df.columns:
+        df['ANO_NF'] = pd.to_datetime(df['DT_NUM_NF'], dayfirst=True, errors='coerce').dt.year
+    else:
+        df['ANO_NF'] = np.nan
+    
+    # Process guarantee information
+    df = process_o2c_data(df)
+    
+    return df
 
-def calcular_fim_garantia(row):
-    try:
-        dt_nf = pd.to_datetime(row.get('DT_NUM_NF', ''), dayfirst=True, errors='coerce')
-        dias_garantia = pd.to_numeric(row.get('GARANTIA', ''), errors='coerce')
-        if pd.isna(dt_nf) or pd.isna(dias_garantia):
-            return ''
-        fim = dt_nf + pd.to_timedelta(dias_garantia, unit='D')
-        return fim.strftime('%d/%m/%Y')
-    except:
-        return ''
+@st.cache_data(ttl=1800, show_spinner=False)
+def precompute_chamados_dicts(chamados_df: pd.DataFrame):
+    """Precompute chamados dictionaries for fast filtering."""
+    df = chamados_df.copy()
+    
+    # Ensure '' is a category before fillna
+    for cat_col in ['SERVIÇO', 'CHASSI', 'SS']:
+        if cat_col in df.columns and '' not in df[cat_col].cat.categories:
+            df[cat_col] = df[cat_col].cat.add_categories([''])
+    
+    df['SERVIÇO'] = df['SERVIÇO'].fillna('')
+    df['CHASSI'] = df['CHASSI'].fillna('')
+    df['SS'] = df['SS'].fillna('')
+    
+    # Filter out [STB] calls from summary
+    if 'SUMÁRIO' in df.columns:
+        df['SUMÁRIO'] = df['SUMÁRIO'].fillna('')
+        # Exclude calls with [STB] in summary
+        df_valid_chamados = df[~df['SUMÁRIO'].str.contains('\\[STB\\]', case=False, na=False)]
+    else:
+        df_valid_chamados = df
+    
+    # Create dictionaries and sets for fast lookup
+    chamados_por_chassi_dict = df.groupby('CHASSI')['SS'].apply(list).to_dict()
+    servico_partida = df[df['SERVIÇO'].str.contains('PARTIDA INICIAL', na=False)]
+    partida_set = set(servico_partida['CHASSI'])
+    chassi_counts = df.groupby('CHASSI').size()
+    # Use valid chamados (excluding [STB]) for chamado metrics
+    chassi_com_chamado = set(df_valid_chamados[~df_valid_chamados['SERVIÇO'].str.contains('PARTIDA INICIAL', na=False)]['CHASSI'])
+    
+    return chamados_por_chassi_dict, partida_set, chassi_counts, chassi_com_chamado
 
-def calcular_status_garantia(row):
-    try:
-        dt_nf = pd.to_datetime(row.get('DT_NUM_NF', ''), dayfirst=True, errors='coerce')
-        dias_garantia = pd.to_numeric(row.get('GARANTIA', ''), errors='coerce')
-        if pd.isna(dt_nf) or pd.isna(dias_garantia):
-            return ''
-        fim = dt_nf + pd.to_timedelta(dias_garantia, unit='D')
-        hoje = pd.Timestamp.now().normalize()
-        return 'DENTRO' if hoje <= fim else 'FORA'
-    except:
-        return ''
+# Preprocess data
+o2c = preprocess_o2c_data(o2c)
+chamados_por_chassi_dict, partida_set, chassi_counts, chassi_com_chamado = precompute_chamados_dicts(chamados)
 
-o2c['FIM_GARANTIA'] = o2c.apply(calcular_fim_garantia, axis=1)
-o2c['STATUS_GARANTIA'] = o2c.apply(calcular_status_garantia, axis=1)
-
-# Remover filtro de ano: filtered começa como todos os dados
+# Start with all data
 filtered = o2c.copy()
 
-# Se existir UF e CIDADE, usar para o mapa e tabela
+# Ensure UF column exists
 if 'UF' in filtered.columns:
     filtered['UF'] = filtered['UF'].str.strip().str.upper()
 else:
     filtered['UF'] = filtered['ESTADO']
+
 if 'CIDADE' not in filtered.columns:
     filtered['CIDADE'] = ''
 
-# Contagem de bombas por estado (usando UF)
+# Count pumps by state
 estado_counts = filtered.groupby('UF').size().reset_index(name='Quantidade')
 
-# Após aplicar todos os filtros em filtered:
+# Calculate base metrics
 all_bombas = o2c['NUM_SERIAL'].dropna().nunique()
 total_bombas = filtered['NUM_SERIAL'].nunique()
 filtered_chassis = set(filtered['NUM_SERIAL'])
 
-
-# --- Precompute dicts and sets for fast filtering ---
-@st.cache_data(show_spinner=False)
-def precompute_chamados_dicts(chamados):
-    chamados = chamados.copy()
-    # Ensure '' is a category before fillna
-    for cat_col in ['SERVIÇO', 'CHASSI', 'SS']:
-        if cat_col in chamados.columns and '' not in chamados[cat_col].cat.categories:
-            chamados[cat_col] = chamados[cat_col].cat.add_categories([''])
-    chamados['SERVIÇO'] = chamados['SERVIÇO'].fillna('')
-    chamados['CHASSI'] = chamados['CHASSI'].fillna('')
-    chamados['SS'] = chamados['SS'].fillna('')
-    chamados_por_chassi_dict = chamados.groupby('CHASSI')['SS'].apply(list).to_dict()
-    servico_partida = chamados[chamados['SERVIÇO'].str.contains('PARTIDA INICIAL', na=False)]
-    partida_set = set(servico_partida['CHASSI'])
-    chassi_counts = chamados.groupby('CHASSI').size()
-    chassi_com_chamado = set(chamados[~chamados['SERVIÇO'].str.contains('PARTIDA INICIAL', na=False)]['CHASSI'])
-    return chamados_por_chassi_dict, partida_set, chassi_counts, chassi_com_chamado
-
-chamados_por_chassi_dict, partida_set, chassi_counts, chassi_com_chamado = precompute_chamados_dicts(chamados)
-
-# Use filtered_filtros para KPIs, mapa e tabela
 # --- Sidebar Filtros ---
-st.sidebar.header('Filtros')
+filtros = sidebar_filters_parque(filtered, chassi_counts)
 
-# RTM
-rtm_options = ['TODOS'] + sorted(filtered['RTM'].dropna().unique())
-rtm_sel = st.sidebar.selectbox('RTM', rtm_options)
-
-# Garantia
-garantia_options = ['TODOS', 'DENTRO', 'FORA']
-garantia_sel = st.sidebar.selectbox('Garantia', garantia_options)
-
-# Partida Inicial
-partida_options = ['TODOS', 'SIM', 'NÃO']
-partida_sel = st.sidebar.selectbox('Partida Inicial', partida_options)
-
-# Range Ano NF
-anos_validos = filtered['ANO_NF'].dropna().astype(int)
-if not anos_validos.empty:
-    ano_min, ano_max = int(anos_validos.min()), int(anos_validos.max())
-else:
-    ano_min, ano_max = 2000, 2030
-ano_range = st.sidebar.slider('Ano da NF', ano_min, ano_max, (ano_min, ano_max))
-
-# Range Nº de chamados
-qtd_chamados_validos = chassi_counts.reindex(filtered['NUM_SERIAL'].dropna().unique(), fill_value=0)
-chamados_min, chamados_max = int(qtd_chamados_validos.min()), int(qtd_chamados_validos.max())
-chamados_range = st.sidebar.slider('Nº de chamados', chamados_min, chamados_max, (chamados_min, chamados_max))
+# --- RTM Error Filters ---
+filtros_rtm = sidebar_filters_rtm_errors(erros_rtm)
 
 # --- Aplicar filtros ---
-filtered_filtros = filtered.copy()
+# Calculate valid call counts (excluding [STB]) for filtering
+if 'SUMÁRIO' in chamados.columns:
+    chamados['SUMÁRIO'] = chamados['SUMÁRIO'].fillna('')
+    chamados_validos = chamados[~chamados['SUMÁRIO'].str.contains('\\[STB\\]', case=False, na=False)]
+    chassi_counts_validos = chamados_validos.groupby('CHASSI').size()
+else:
+    chassi_counts_validos = chassi_counts
 
-if rtm_sel != 'TODOS':
-    filtered_filtros = filtered_filtros[filtered_filtros['RTM'] == rtm_sel]
-if garantia_sel != 'TODOS':
-    filtered_filtros = filtered_filtros[filtered_filtros['STATUS_GARANTIA'] == garantia_sel]
-if partida_sel != 'TODOS':
-    if partida_sel == 'SIM':
-        filtered_filtros = filtered_filtros[filtered_filtros['NUM_SERIAL'].isin(partida_set)]
-    else:
-        filtered_filtros = filtered_filtros[~filtered_filtros['NUM_SERIAL'].isin(partida_set)]
-filtered_filtros = filtered_filtros[(filtered_filtros['ANO_NF'] >= ano_range[0]) & (filtered_filtros['ANO_NF'] <= ano_range[1])]
+# Apply regular filters first
+filtered_filtros = aplicar_filtros_parque(filtered, filtros, partida_set, chassi_counts, chassi_counts_validos)
 
-# Filtro por número de chamados
-chassis_filtros = filtered_filtros['NUM_SERIAL'].dropna().unique()
-qtd_chamados_filtros = chassi_counts.reindex(chassis_filtros, fill_value=0)
-filtered_filtros = filtered_filtros[filtered_filtros['NUM_SERIAL'].isin(qtd_chamados_filtros[(qtd_chamados_filtros >= chamados_range[0]) & (qtd_chamados_filtros <= chamados_range[1])].index)]
+# Then apply RTM error filters
+filtered_filtros = aplicar_filtros_rtm_errors(filtered_filtros, filtros_rtm, erros_rtm, chamados_por_chassi_dict)
 
 # === A PARTIR DAQUI, USAR filtered_filtros PARA KPIs, MAPA E TABELA ===
-# ... KPIs, mapa e tabela ...
+# Remove duplicates based on NUM_SERIAL to ensure accurate counts
+filtered_filtros_unique = filtered_filtros.drop_duplicates(subset=['NUM_SERIAL'], keep='first')
+
+# Remove rows where NUM_SERIAL is not exactly 6 digits
+filtered_filtros_unique = filtered_filtros_unique[
+    filtered_filtros_unique['NUM_SERIAL'].astype(str).str.match(r'^\d{6}$', na=False)
+]
+
+
 
 # Total de bombas na base (sem filtro)
 all_bombas = o2c['NUM_SERIAL'].dropna().nunique()
 
-# Chassis únicos filtrados
-chassis_filtros = filtered_filtros['NUM_SERIAL'].dropna().unique()
+# Chassis únicos filtrados (from deduplicated data)
+chassis_filtros = filtered_filtros_unique['NUM_SERIAL'].dropna().unique()
 total_bombas_filtro = len(chassis_filtros)
 
+# Média de chamados por bomba (excluindo [STB])
+chassis_filtros_series = pd.Series(chassis_filtros)
+qtd_chamados_filtros = chassi_counts_validos.reindex(chassis_filtros_series, fill_value=0)
+media_chamados = qtd_chamados_filtros.mean()
 
-# % sem partida inicial
-sem_partida = ~pd.Series(chassis_filtros).isin(partida_set)
-pct_sem_partida = 100 * sem_partida.sum() / total_bombas_filtro if total_bombas_filtro else 0
+# % com partida inicial (DFS)
+com_partida_dfs = pd.Series(chassis_filtros).isin(partida_set)
+pct_com_partida_dfs = 100 * com_partida_dfs.sum() / total_bombas_filtro if total_bombas_filtro else 0
 
-# % COM chamado (exceto PI)
+# Define the determine_partida_inicial function for KPI calculation
+def determine_partida_inicial_kpi(row):
+    """Determine partida inicial status based on new rules for KPI calculation."""
+    has_partida_inicial = row['NUM_SERIAL'] in partida_set
+    qtd_chamados = row['QTD_CHAMADOS']
+    
+    if has_partida_inicial:
+        return 'SIM - DFS'
+    elif qtd_chamados > 0:
+        return 'SIM - TERCEIRO'
+    else:
+        return 'NÃO'
+
+# % com partida inicial (Terceiros) - based on actual PARTIDA_INICIAL values
+# Use deduplicated data for accurate KPI calculation
+filtered_filtros_temp = filtered_filtros_unique.copy()
+filtered_filtros_temp['QTD_CHAMADOS'] = filtered_filtros_temp['NUM_SERIAL'].map(chassi_counts_validos).fillna(0)
+filtered_filtros_temp['PARTIDA_INICIAL'] = filtered_filtros_temp.apply(determine_partida_inicial_kpi, axis=1)
+
+# Count SIM - TERCEIRO in the deduplicated filtered data
+sim_terceiro_count = (filtered_filtros_temp['PARTIDA_INICIAL'] == 'SIM - TERCEIRO').sum()
+pct_com_partida_terceiros = 100 * sim_terceiro_count / total_bombas_filtro if total_bombas_filtro else 0
+
+# % com chamado (excluindo [STB])
 com_chamado = pd.Series(chassis_filtros).isin(chassi_com_chamado)
 pct_com_chamado = 100 * com_chamado.sum() / total_bombas_filtro if total_bombas_filtro else 0
 
+# % sem chamado (excluindo [STB])
+sem_chamado = ~pd.Series(chassis_filtros).isin(chassi_com_chamado)
+pct_sem_chamado = 100 * sem_chamado.sum() / total_bombas_filtro if total_bombas_filtro else 0
+
 # % RTM
-rtm_chassis = filtered_filtros.drop_duplicates('NUM_SERIAL')
-pct_rtm = 100 * sum(rtm_chassis['RTM'] == 'SIM') / total_bombas_filtro if total_bombas_filtro else 0
+rtm_count = filtered_filtros_unique[filtered_filtros_unique['RTM'] == 'SIM']['NUM_SERIAL'].nunique()
+pct_rtm = 100 * rtm_count / total_bombas_filtro if total_bombas_filtro else 0
 
-# Média de chamados por bomba
-media_chamados = chassi_counts.reindex(chassis_filtros, fill_value=0).mean() if total_bombas_filtro else 0
+# % Em Garantia
+em_garantia_count = filtered_filtros_unique[filtered_filtros_unique['STATUS_GARANTIA'] == 'DENTRO']['NUM_SERIAL'].nunique()
+pct_em_garantia = 100 * em_garantia_count / total_bombas_filtro if total_bombas_filtro else 0
 
-# Média de chamados por bomba RTM
-rtm_serials = rtm_chassis[rtm_chassis['RTM'] == 'SIM']['NUM_SERIAL']
-media_chamados_rtm = chassi_counts.reindex(rtm_serials, fill_value=0).mean() if not rtm_serials.empty else 0
+# % Fora de Garantia
+fora_garantia_count = filtered_filtros_unique[filtered_filtros_unique['STATUS_GARANTIA'] == 'FORA']['NUM_SERIAL'].nunique()
+pct_fora_garantia = 100 * fora_garantia_count / total_bombas_filtro if total_bombas_filtro else 0
 
-col2, col3, col4, col5, col6, col7 = st.columns(6)
-col2.metric('Total Bombas', total_bombas_filtro)
-col3.metric('% Sem Partida Inicial', f'{pct_sem_partida:.1f}%')
-col4.metric('% Com Chamado', f'{pct_com_chamado:.1f}%')
-col5.metric('% RTM', f'{pct_rtm:.1f}%')
-col6.metric('Média Chamados/Bomba', f'{media_chamados:.2f}')
-col7.metric('Média Chamados/Bomba RTM', f'{media_chamados_rtm:.2f}')
+# --- Cálculo de Valores RTM ---
+# Get SS numbers for filtered pumps
+ss_filtrados = set()
+for chassi in chassis_filtros:
+    if chassi in chamados_por_chassi_dict:
+        ss_filtrados.update(chamados_por_chassi_dict[chassi])
+
+# Filter RTM errors for these SS numbers
+erros_filtrados = erros_rtm[erros_rtm['SS'].astype(str).isin(ss_filtrados)]
+
+# Calculate value metrics
+if len(erros_filtrados) > 0:
+    media_valor_total = erros_filtrados['VALOR_TOTAL'].mean()
+    media_valor_peca = erros_filtrados['VALOR_PECA'].mean()
+    soma_valor_total = erros_filtrados['VALOR_TOTAL'].sum()
+    soma_valor_peca = erros_filtrados['VALOR_PECA'].sum()
+else:
+    media_valor_total = 0
+    media_valor_peca = 0
+    soma_valor_total = 0
+    soma_valor_peca = 0
+
+# --- KPIs ---
+st.title('🗺️ Parque Instalado - Análise por Estado')
+
+# Primeira linha de KPIs
+col1, col2, col3, col4, col5, col6, col7, col8, col9 = st.columns(9)
+col1.metric('Total de Bombas', total_bombas_filtro)
+col2.metric('% Com Partida (DFS)', f"{pct_com_partida_dfs:.1f}%")
+col3.metric('% Com Partida (Terceiros)', f"{pct_com_partida_terceiros:.1f}%")
+col4.metric('% Com Chamado', f"{pct_com_chamado:.1f}%")
+col5.metric('% Sem Chamado', f"{pct_sem_chamado:.1f}%")
+col6.metric('% RTM', f"{pct_rtm:.1f}%")
+col7.metric('% Em Garantia', f"{pct_em_garantia:.1f}%")
+col8.metric('% Fora de Garantia', f"{pct_fora_garantia:.1f}%")
+col9.metric('Média Chamados/Bomba', f"{media_chamados:.1f}")
+
+# Segunda linha de KPIs - Valores
+col10, col11, col12, col13 = st.columns(4)
+col10.metric('Média Valor Total (R$)', f"R$ {media_valor_total:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
+col11.metric('Média Valor Peça (R$)', f"R$ {media_valor_peca:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
+col12.metric('Soma Valor Total (R$)', f"R$ {soma_valor_total:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
+col13.metric('Soma Valor Peça (R$)', f"R$ {soma_valor_peca:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
 
 # --- Mapa ---
-with open('brazil_states.geojson', 'r', encoding='utf-8') as f:
-    geo_brasil = json.load(f)
+st.header('📊 Distribuição Geográfica')
 
-# Atualizar contagem após filtro
-estado_counts_filtered = filtered_filtros.groupby('UF').size().reset_index(name='Quantidade')
-
-fig_uf = px.choropleth_mapbox(
-    estado_counts_filtered,
-    geojson=geo_brasil,
-    locations="UF",
-    featureidkey="properties.sigla",
-    color="Quantidade",
+# Check if we have data for the map
+if len(filtered_filtros_unique) > 0:
+    # Ensure UF column exists and has valid data
+    if 'UF' in filtered_filtros_unique.columns:
+        # Remove rows with empty or invalid UF
+        filtered_filtros_map = filtered_filtros_unique[
+            (filtered_filtros_unique['UF'].notna()) & 
+            (filtered_filtros_unique['UF'].astype(str).str.strip() != '') &
+            (filtered_filtros_unique['UF'].astype(str).str.strip() != 'NAN')
+        ].copy()
+        
+        if len(filtered_filtros_map) > 0:
+            # Update state counts for filtered data (deduplicated)
+            estado_counts_filtrado = filtered_filtros_map.groupby('UF').size().reset_index(name='Quantidade')
+            
+            # Create map
+            try:
+                fig_mapa = vz.choropleth_map_brazil(filtered_filtros_map, estado_counts_filtrado)
+                st.plotly_chart(fig_mapa, use_container_width=True)
+            except Exception as e:
+                st.error(f"❌ Erro ao criar mapa: {str(e)}")
+                
+                # Fallback: Simple bar chart
+                st.info("📊 Exibindo gráfico de barras como alternativa:")
+                fig_bar = px.bar(
+                    estado_counts_filtrado,
+                    x='UF',
+                    y='Quantidade',
+                    color='Quantidade',
     color_continuous_scale="Blues",
-    mapbox_style="carto-positron",
-    zoom=3,
-    center={"lat": -14.2350, "lon": -52.0},
-    opacity=0.7,
-    labels={"Quantidade": "Bombas"},
+                    title="Distribuição de Bombas por Estado"
+                )
+                fig_bar.update_layout(
+                    xaxis_title="Estado",
+                    yaxis_title="Quantidade de Bombas",
+                    height=500,
+                    xaxis_tickangle=-45
+                )
+                st.plotly_chart(fig_bar, use_container_width=True)
+        else:
+            st.warning("⚠️ Nenhum dado válido encontrado para exibir no mapa após a filtragem.")
+    else:
+        st.warning("⚠️ Coluna 'UF' não encontrada nos dados.")
+        # Try to use ESTADO column instead
+        if 'ESTADO' in filtered_filtros_unique.columns:
+            st.info("🔄 Tentando usar coluna 'ESTADO'...")
+            filtered_filtros_map = filtered_filtros_unique[
+                (filtered_filtros_unique['ESTADO'].notna()) & 
+                (filtered_filtros_unique['ESTADO'].astype(str).str.strip() != '') &
+                (filtered_filtros_unique['ESTADO'].astype(str).str.strip() != 'NAN')
+            ].copy()
+            
+            if len(filtered_filtros_map) > 0:
+                estado_counts_filtrado = filtered_filtros_map.groupby('ESTADO').size().reset_index(name='Quantidade')
+                try:
+                    fig_mapa = vz.choropleth_map_brazil(filtered_filtros_map, estado_counts_filtrado)
+                    st.plotly_chart(fig_mapa, use_container_width=True)
+                except Exception as e:
+                    st.error(f"❌ Erro ao criar mapa com ESTADO: {str(e)}")
+else:
+    st.warning("⚠️ Nenhum dado encontrado após a aplicação dos filtros.")
+
+# --- Tabela Detalhada ---
+st.header('📋 Detalhamento das Bombas')
+
+# Prepare table data
+colunas_tabela = [
+    'NUM_SERIAL', 'UF', 'CIDADE', 'CLIENTE', 'RTM', 'STATUS_GARANTIA', 'FIM_GARANTIA', 
+    'ANO_NF', 'DT_NUM_NF', 'GARANTIA'
+]
+
+# Add call count column (excluindo [STB])
+filtered_filtros_unique['QTD_CHAMADOS'] = filtered_filtros_unique['NUM_SERIAL'].map(chassi_counts_validos).fillna(0)
+
+# Ensure CLIENTE column exists
+if 'CLIENTE' not in filtered_filtros_unique.columns:
+    filtered_filtros_unique['CLIENTE'] = ''
+
+# Add partida inicial info with new logic
+def determine_partida_inicial(row):
+    """Determine partida inicial status based on new rules."""
+    has_partida_inicial = row['NUM_SERIAL'] in partida_set
+    qtd_chamados = row['QTD_CHAMADOS']
+    
+    if has_partida_inicial:
+        return 'SIM - DFS'
+    elif qtd_chamados > 0:
+        return 'SIM - TERCEIRO'
+    else:
+        return 'NÃO'
+
+# Apply the new logic
+filtered_filtros_unique['PARTIDA_INICIAL'] = filtered_filtros_unique.apply(determine_partida_inicial, axis=1)
+
+# Format FIM_GARANTIA as date string
+if 'FIM_GARANTIA' in filtered_filtros_unique.columns:
+    filtered_filtros_unique['FIM_GARANTIA'] = filtered_filtros_unique['FIM_GARANTIA'].dt.strftime('%d/%m/%Y')
+
+# Display table
+st.dataframe(
+    filtered_filtros_unique[colunas_tabela + ['QTD_CHAMADOS', 'PARTIDA_INICIAL']],
+    use_container_width=True,
+    hide_index=True,
+    column_config={
+        "NUM_SERIAL": st.column_config.TextColumn("Número Serial", width="medium"),
+        "UF": st.column_config.TextColumn("UF", width="small"),
+        "CIDADE": st.column_config.TextColumn("Cidade", width="medium"),
+        "CLIENTE": st.column_config.TextColumn("Cliente", width="medium"),
+        "RTM": st.column_config.TextColumn("RTM", width="small"),
+        "STATUS_GARANTIA": st.column_config.TextColumn("Status Garantia", width="small"),
+        "FIM_GARANTIA": st.column_config.TextColumn("Fim Garantia", width="small"),
+        "ANO_NF": st.column_config.NumberColumn("Ano NF", format="%d", width="small"),
+        "DT_NUM_NF": st.column_config.DateColumn("Data NF", format="DD/MM/YYYY", width="small"),
+        "GARANTIA": st.column_config.TextColumn("Garantia (dias)", width="small"),
+        "QTD_CHAMADOS": st.column_config.NumberColumn("Qtd Chamados", format="%d", width="small"),
+        "PARTIDA_INICIAL": st.column_config.TextColumn("Partida Inicial", width="small")
+    }
 )
-fig_uf.update_layout(margin={"r":0,"t":0,"l":0,"b":0}, height=700)
-st.plotly_chart(fig_uf, use_container_width=True)
 
-# --- Tabela detalhada ---
-# Para cada chassi, buscar info de partida inicial e lista de chamados
-chamados['SERVIÇO'] = chamados['SERVIÇO'].fillna('')
-chamados['CHASSI'] = chamados['CHASSI'].fillna('')
-chamados['SS'] = chamados['SS'].fillna('')
-
+# --- Funções auxiliares para detalhamento ---
 def partida_inicial_info(chassi):
-    if chassi in partida_dict:
-        return f"SIM"
-    return "NÃO"
+    """Get partida inicial information for a chassis."""
+    return "SIM" if chassi in partida_set else "NÃO"
 
 def chamados_lista(chassi):
-    return ', '.join(chamados_por_chassi_dict.get(chassi, []))
+    """Get list of calls for a chassis."""
+    return chamados_por_chassi_dict.get(chassi, [])
 
+# --- Download functionality ---
+@st.cache_data(ttl=900, show_spinner=False)
+def prepare_download_data(df: pd.DataFrame):
+    """Prepare data for download with optimizations."""
+    download_df = df.copy()
+    
+    # Format dates for download
+    if 'DT_NUM_NF' in download_df.columns:
+        download_df['DT_NUM_NF'] = download_df['DT_NUM_NF'].dt.strftime('%d/%m/%Y')
+    
+    if 'FIM_GARANTIA' in download_df.columns:
+        # Check if FIM_GARANTIA is already a string (formatted) or datetime
+        if pd.api.types.is_datetime64_any_dtype(download_df['FIM_GARANTIA']):
+            download_df['FIM_GARANTIA'] = download_df['FIM_GARANTIA'].dt.strftime('%d/%m/%Y')
+        # If it's already a string, leave it as is
+    
+    return download_df
 
-# Montar tabela de forma vetorizada para performance
-df_tabela = filtered_filtros.copy()
-df_tabela['QTD_CHAMADOS'] = df_tabela['NUM_SERIAL'].map(chassi_counts).fillna(0).astype(int)
-df_tabela['PARTIDA INICIAL'] = df_tabela['NUM_SERIAL'].isin(partida_set).map({True: 'SIM', False: 'NÃO'})
-df_tabela['CHAMADOS'] = df_tabela['NUM_SERIAL'].map(chamados_por_chassi_dict).apply(lambda x: ', '.join(x) if isinstance(x, list) else '')
-
-
-# Ajuste de nomes de colunas para evitar KeyError
-col_map = {
-    'CHASSI': 'NUM_SERIAL',
-    'NF': 'NUM_NF',
-    'DATA_NF': 'DT_NUM_NF',
-}
-cols = [col_map.get(c, c) for c in ['CHASSI', 'CLIENTE', 'RTM', 'NF', 'DATA_NF', 'FIM_GARANTIA', 'GARANTIA', 'UF', 'CIDADE', 'QTD_CHAMADOS', 'PARTIDA INICIAL', 'CHAMADOS']]
-# Renomear colunas temporariamente para exibição
-df_tabela = df_tabela.rename(columns={v: k for k, v in col_map.items() if v in df_tabela.columns})
-df_tabela = df_tabela[cols]
-
-st.markdown('### Bombas Instaladas')
-st.dataframe(df_tabela, use_container_width=True)
-
-# ... KPIs, mapa e tabela ... 
+# Download button
+download_data = prepare_download_data(filtered_filtros_unique)
+csv = download_data.to_csv(index=False, sep=';', encoding='utf-8-sig')
+st.download_button(
+    label="📥 Download dos Dados Filtrados",
+    data=csv,
+    file_name=f"parque_instalado_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+    mime="text/csv"
+) 
