@@ -65,11 +65,11 @@ def bar_chart_aging(df: pd.DataFrame, campo: str) -> Any:
 def pie_chart_aging(df: pd.DataFrame) -> Any:
     """Returns a pie chart of aging categories with optimizations."""
     df_clean = df.copy()
-    df_clean["Aging"] = pd.to_numeric(df_clean["Aging"], errors="coerce")
+    df_clean["AGING"] = pd.to_numeric(df_clean["AGING"], errors="coerce")
     
     # Vectorized categorization
     aging_categorias = pd.cut(
-        df_clean["Aging"].dropna(),
+        df_clean["AGING"].dropna(),
         bins=[0, 7, 14, float('inf')],
         labels=["Até 7", "8 a 14", ">14"],
         include_lowest=True
@@ -172,12 +172,18 @@ def bar_chart_aging_proprietario(df: pd.DataFrame) -> Any:
         [1.0, "#282B3C"]
     ]
     
+    df_plot = pd.DataFrame({
+        "Proprietário": aging_medio.index,
+        "Aging Médio (Dias)": aging_medio.values
+    })
+    
     fig = px.bar(
-        x=aging_medio.index,
-        y=aging_medio.values,
-        labels={"x": "Proprietário", "y": "Aging Médio (Dias)", "color": "Aging Médio"},
-        color=aging_medio.values,
-        color_continuous_scale=custom_scale
+        df_plot,
+        x="Proprietário",
+        y="Aging Médio (Dias)",
+        color="Aging Médio (Dias)",
+        color_continuous_scale=custom_scale,
+        labels={"Aging Médio (Dias)": "Aging Médio (Dias)", "Proprietário": "Proprietário"}
     )
     fig.update_layout(
         xaxis_title="Proprietário",
@@ -207,12 +213,18 @@ def bar_chart_aging_especialista(df: pd.DataFrame) -> Any:
         [1.0, "#282B3C"]
     ]
     
+    df_plot = pd.DataFrame({
+        "Especialista": aging_medio.index,
+        "Aging Médio (Dias)": aging_medio.values
+    })
+    
     fig = px.bar(
-        x=aging_medio.index,
-        y=aging_medio.values,
-        labels={"x": "Especialista", "y": "Aging Médio (Dias)", "color": "Aging Médio"},
-        color=aging_medio.values,
-        color_continuous_scale=custom_scale
+        df_plot,
+        x="Especialista",
+        y="Aging Médio (Dias)",
+        color="Aging Médio (Dias)",
+        color_continuous_scale=custom_scale,
+        labels={"Aging Médio (Dias)": "Aging Médio (Dias)", "Especialista": "Especialista"}
     )
     fig.update_layout(
         xaxis_title="Especialista",
@@ -242,12 +254,18 @@ def bar_chart_aging_mantenedor(df: pd.DataFrame) -> Any:
         [1.0, "#282B3C"]
     ]
     
+    df_plot = pd.DataFrame({
+        "Mantenedor": aging_medio.index,
+        "Aging Médio (Dias)": aging_medio.values
+    })
+    
     fig = px.bar(
-        x=aging_medio.index,
-        y=aging_medio.values,
-        labels={"x": "Mantenedor", "y": "Aging Médio (Dias)", "color": "Aging Médio"},
-        color=aging_medio.values,
-        color_continuous_scale=custom_scale
+        df_plot,
+        x="Mantenedor",
+        y="Aging Médio (Dias)",
+        color="Aging Médio (Dias)",
+        color_continuous_scale=custom_scale,
+        labels={"Aging Médio (Dias)": "Aging Médio (Dias)", "Mantenedor": "Mantenedor"}
     )
     fig.update_layout(
         xaxis_title="Mantenedor",

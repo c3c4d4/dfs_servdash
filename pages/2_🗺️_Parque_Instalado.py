@@ -14,10 +14,11 @@ import plotly.express as px
 from data_loader import carregar_dados_merged, carregar_o2c, process_o2c_data, carregar_base_erros_rtm
 from utils import extrair_estado
 from auth import check_password
-from filters import sidebar_filters_parque, aplicar_filtros_parque, sidebar_filters_rtm_errors, aplicar_filtros_rtm_errors
+from filters import sidebar_filters_rtm_errors, aplicar_filtros_rtm_errors
 import visualization as vz
 import numpy as np
 from datetime import datetime
+from streamlit_dynamic_filters import DynamicFilters  # NEW IMPORT
 
 st.set_page_config(page_title="Parque Instalado - Chamados de Serviços", layout="wide")
 
@@ -124,69 +125,98 @@ def precompute_chamados_dicts(chamados_df: pd.DataFrame):
 o2c = preprocess_o2c_data(o2c)
 chamados_por_chassi_dict, partida_set, chassi_counts, chassi_com_chamado = precompute_chamados_dicts(chamados)
 
-# Start with all data
-filtered = o2c.copy()
+# --- Sidebar Filtros Dinâmicos ---
+filter_columns = ['UF', 'RTM', 'STATUS_GARANTIA', 'ANO_NF']  # You can add/remove columns as needed
+with st.sidebar:
+    st.write("Aplique os filtros em qualquer ordem 👇")
+    dynamic_filters = DynamicFilters(o2c, filters=filter_columns)
+    dynamic_filters.display_filters(location='sidebar')
+    considerar_stb = st.checkbox("Remover [STB]", value=False)
 
-# Ensure UF column exists
-if 'UF' in filtered.columns:
-    filtered['UF'] = filtered['UF'].str.strip().str.upper()
+# Use the checkbox value to filter chamados for calculations
+if considerar_stb:
+    chamados_considerados = chamados.copy()
 else:
-    filtered['UF'] = filtered['ESTADO']
+    chamados_considerados = chamados[~chamados['SUMÁRIO'].str.contains('\\[STB\\]', case=False, na=False)].copy()
 
-if 'CIDADE' not in filtered.columns:
-    filtered['CIDADE'] = ''
+chassi_counts_validos = chamados_considerados.groupby('CHASSI').size()
+chassi_com_chamado = set(
+    chamados_considerados[~chamados_considerados['SERVIÇO'].str.contains('PARTIDA INICIAL', na=False)]['CHASSI']
+)
 
-# Count pumps by state
-estado_counts = filtered.groupby('UF').size().reset_index(name='Quantidade')
-
-# Calculate base metrics
-all_bombas = o2c['NUM_SERIAL'].dropna().nunique()
-total_bombas = filtered['NUM_SERIAL'].nunique()
-filtered_chassis = set(filtered['NUM_SERIAL'])
-
-# --- Sidebar Filtros ---
-filtros = sidebar_filters_parque(filtered, chassi_counts)
-
-# --- RTM Error Filters ---
-filtros_rtm = sidebar_filters_rtm_errors(erros_rtm)
-
-# --- Aplicar filtros ---
-# Calculate valid call counts (excluding [STB]) for filtering
-if 'SUMÁRIO' in chamados.columns:
-    chamados['SUMÁRIO'] = chamados['SUMÁRIO'].fillna('')
-    chamados_validos = chamados[~chamados['SUMÁRIO'].str.contains('\\[STB\\]', case=False, na=False)]
-    chassi_counts_validos = chamados_validos.groupby('CHASSI').size()
-else:
-    chassi_counts_validos = chassi_counts
-
-# Apply regular filters first
-filtered_filtros = aplicar_filtros_parque(filtered, filtros, partida_set, chassi_counts, chassi_counts_validos)
-
-# Then apply RTM error filters
-filtered_filtros = aplicar_filtros_rtm_errors(filtered_filtros, filtros_rtm, erros_rtm, chamados_por_chassi_dict)
-
-# === A PARTIR DAQUI, USAR filtered_filtros PARA KPIs, MAPA E TABELA ===
-# Remove duplicates based on NUM_SERIAL to ensure accurate counts
-filtered_filtros_unique = filtered_filtros.drop_duplicates(subset=['NUM_SERIAL'], keep='first')
+# Now filter the dataframe after all filter variables are set
+filtered_filtros_unique = dynamic_filters.filter_df().drop_duplicates(subset=['NUM_SERIAL'], keep='first')
 
 # Remove rows where NUM_SERIAL is not exactly 6 digits
 filtered_filtros_unique = filtered_filtros_unique[
     filtered_filtros_unique['NUM_SERIAL'].astype(str).str.match(r'^\d{6}$', na=False)
 ]
 
+# Add a new column with all chamados for each chassi, comma separated
+filtered_filtros_unique['CHAMADOS_LISTA'] = filtered_filtros_unique['NUM_SERIAL'].apply(
+    lambda chassi: ', '.join(str(ss) for ss in chamados_por_chassi_dict.get(chassi, []))
+)
+
+# --- RTM Error Filters (mantém como estava) ---
+filtros_rtm = sidebar_filters_rtm_errors(erros_rtm)
+filtered_filtros_unique = aplicar_filtros_rtm_errors(filtered_filtros_unique, filtros_rtm, erros_rtm, chamados_por_chassi_dict)
+
+# Recalculate QTD_CHAMADOS based on filtered RTM error context
+# Get only the SS present in the filtered RTM error set
+ss_filtrados = set(erros_rtm['SS'].astype(str))
+erros_filtrados = erros_rtm.copy()
+if filtros_rtm["tipo_erro_sel"] != 'TODOS':
+    erros_filtrados = erros_filtrados[erros_filtrados['TIPO_ERRO'] == filtros_rtm["tipo_erro_sel"]]
+if filtros_rtm["desc_erro_sel"] != 'TODOS':
+    erros_filtrados = erros_filtrados[erros_filtrados['DESC_ERRO'] == filtros_rtm["desc_erro_sel"]]
+if filtros_rtm["cod_erro_sel"] != 'TODOS':
+    erros_filtrados = erros_filtrados[erros_filtrados['CÓD_ERRO'] == filtros_rtm["cod_erro_sel"]]
+if filtros_rtm["detalhes_erro_sel"] != 'TODOS':
+    erros_filtrados = erros_filtrados[erros_filtrados['DETALHES_ERRO'] == filtros_rtm["detalhes_erro_sel"]]
+ss_filtrados = set(erros_filtrados['SS'].astype(str))
+
+def count_chamados_for_chassi(chassi):
+    ss_list = chamados_por_chassi_dict.get(chassi, [])
+    return sum(1 for ss in ss_list if ss in ss_filtrados)
+
+if any([
+    filtros_rtm["tipo_erro_sel"] != 'TODOS',
+    filtros_rtm["desc_erro_sel"] != 'TODOS',
+    filtros_rtm["cod_erro_sel"] != 'TODOS',
+    filtros_rtm["detalhes_erro_sel"] != 'TODOS',
+]):
+    filtered_filtros_unique['QTD_CHAMADOS'] = filtered_filtros_unique['NUM_SERIAL'].apply(count_chamados_for_chassi)
+    # Remove everything with QTD_CHAMADOS < 1
+    filtered_filtros_unique = filtered_filtros_unique[filtered_filtros_unique['QTD_CHAMADOS'] > 0]
+
+# Remove duplicates based on NUM_SERIAL to ensure accurate counts
+# filtered_filtros_unique = filtered_filtros_unique.drop_duplicates(subset=['NUM_SERIAL'], keep='first')
+
+# Remove rows where NUM_SERIAL is not exactly 6 digits
+# filtered_filtros_unique = filtered_filtros_unique[
+#     filtered_filtros_unique['NUM_SERIAL'].astype(str).str.match(r'^\d{6}$', na=False)
+# ]
+
 
 
 # Total de bombas na base (sem filtro)
 all_bombas = o2c['NUM_SERIAL'].dropna().nunique()
 
-# Chassis únicos filtrados (from deduplicated data)
+# After all filters, including RTM error, recalculate chassis_filtros and KPIs based only on the filtered context
 chassis_filtros = filtered_filtros_unique['NUM_SERIAL'].dropna().unique()
 total_bombas_filtro = len(chassis_filtros)
 
 # Média de chamados por bomba (excluindo [STB])
 chassis_filtros_series = pd.Series(chassis_filtros)
 qtd_chamados_filtros = chassi_counts_validos.reindex(chassis_filtros_series, fill_value=0)
-media_chamados = qtd_chamados_filtros.mean()
+media_chamados = qtd_chamados_filtros.mean() if total_bombas_filtro else 0
+
+# % com chamado e % sem chamado: agora baseados apenas no contexto filtrado
+# Se QTD_CHAMADOS > 0, então tem chamado
+com_chamado = qtd_chamados_filtros > 0
+pct_com_chamado = 100 * com_chamado.sum() / total_bombas_filtro if total_bombas_filtro else 0
+sem_chamado = ~com_chamado
+pct_sem_chamado = 100 * sem_chamado.sum() / total_bombas_filtro if total_bombas_filtro else 0
 
 # % com partida inicial (DFS)
 com_partida_dfs = pd.Series(chassis_filtros).isin(partida_set)
@@ -197,7 +227,6 @@ def determine_partida_inicial_kpi(row):
     """Determine partida inicial status based on new rules for KPI calculation."""
     has_partida_inicial = row['NUM_SERIAL'] in partida_set
     qtd_chamados = row['QTD_CHAMADOS']
-    
     if has_partida_inicial:
         return 'SIM - DFS'
     elif qtd_chamados > 0:
@@ -206,22 +235,11 @@ def determine_partida_inicial_kpi(row):
         return 'NÃO'
 
 # % com partida inicial (Terceiros) - based on actual PARTIDA_INICIAL values
-# Use deduplicated data for accurate KPI calculation
 filtered_filtros_temp = filtered_filtros_unique.copy()
 filtered_filtros_temp['QTD_CHAMADOS'] = filtered_filtros_temp['NUM_SERIAL'].map(chassi_counts_validos).fillna(0)
 filtered_filtros_temp['PARTIDA_INICIAL'] = filtered_filtros_temp.apply(determine_partida_inicial_kpi, axis=1)
-
-# Count SIM - TERCEIRO in the deduplicated filtered data
 sim_terceiro_count = (filtered_filtros_temp['PARTIDA_INICIAL'] == 'SIM - TERCEIRO').sum()
 pct_com_partida_terceiros = 100 * sim_terceiro_count / total_bombas_filtro if total_bombas_filtro else 0
-
-# % com chamado (excluindo [STB])
-com_chamado = pd.Series(chassis_filtros).isin(chassi_com_chamado)
-pct_com_chamado = 100 * com_chamado.sum() / total_bombas_filtro if total_bombas_filtro else 0
-
-# % sem chamado (excluindo [STB])
-sem_chamado = ~pd.Series(chassis_filtros).isin(chassi_com_chamado)
-pct_sem_chamado = 100 * sem_chamado.sum() / total_bombas_filtro if total_bombas_filtro else 0
 
 # % RTM
 rtm_count = filtered_filtros_unique[filtered_filtros_unique['RTM'] == 'SIM']['NUM_SERIAL'].nunique()
@@ -382,7 +400,7 @@ if 'FIM_GARANTIA' in filtered_filtros_unique.columns:
 
 # Display table
 st.dataframe(
-    filtered_filtros_unique[colunas_tabela + ['QTD_CHAMADOS', 'PARTIDA_INICIAL']],
+    filtered_filtros_unique[colunas_tabela + ['QTD_CHAMADOS', 'PARTIDA_INICIAL', 'CHAMADOS_LISTA']],
     use_container_width=True,
     hide_index=True,
     column_config={
@@ -397,7 +415,8 @@ st.dataframe(
         "DT_NUM_NF": st.column_config.DateColumn("Data NF", format="DD/MM/YYYY", width="small"),
         "GARANTIA": st.column_config.TextColumn("Garantia (dias)", width="small"),
         "QTD_CHAMADOS": st.column_config.NumberColumn("Qtd Chamados", format="%d", width="small"),
-        "PARTIDA_INICIAL": st.column_config.TextColumn("Partida Inicial", width="small")
+        "PARTIDA_INICIAL": st.column_config.TextColumn("Partida Inicial", width="small"),
+        "CHAMADOS_LISTA": st.column_config.TextColumn("Chamados (SS)", width="large")
     }
 )
 
