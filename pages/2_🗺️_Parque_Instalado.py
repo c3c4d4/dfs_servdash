@@ -1,26 +1,3 @@
-# --- Diagnóstico de anos e chassis RTM=SIM fora dos anos filtrados ---
-st.header('🔎 Diagnóstico de Anos e Chassis RTM=SIM')
-
-# Quais ANO_NF existem para RTM=SIM?
-anos_rtm_sim = filtered_filtros_unique[filtered_filtros_unique['RTM'] == 'SIM']['ANO_NF'].unique()
-st.write("Anos presentes para RTM=SIM:", sorted(anos_rtm_sim))
-
-# Quais chassis RTM=SIM não estão em nenhum dos anos filtrados?
-todos_anos_filtrados = set(anos_disponiveis)
-chassis_fora_anos = filtered_filtros_unique[
-    (filtered_filtros_unique['RTM'] == 'SIM') & (~filtered_filtros_unique['ANO_NF'].isin(todos_anos_filtrados))
-]['NUM_SERIAL']
-st.write("Chassis RTM=SIM fora dos anos filtrados:", list(chassis_fora_anos))
-st.write("Qtd:", len(chassis_fora_anos))
-"""
-Página: Parque Instalado (Mapa e Detalhamento das Bombas)
-
-- Exibe o parque instalado de bombas por estado em mapa interativo.
-- Permite filtrar por RTM, Garantia, Partida Inicial, Ano da NF e Nº de chamados.
-- KPIs, mapa e tabela detalhada são atualizados conforme os filtros.
-- Desenvolvido para análise operacional e estratégica do parque instalado.
-"""
-
 import streamlit as st
 import pandas as pd
 import json
@@ -310,6 +287,23 @@ col10.metric('Média Valor Total (R$)', f"R$ {media_valor_total:,.2f}".replace('
 col11.metric('Média Valor Peça (R$)', f"R$ {media_valor_peca:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
 col12.metric('Soma Valor Total (R$)', f"R$ {soma_valor_total:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
 col13.metric('Soma Valor Peça (R$)', f"R$ {soma_valor_peca:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
+
+# --- Diagnóstico de anos e chassis RTM=SIM fora dos anos filtrados ---
+st.header('🔎 Diagnóstico de Anos e Chassis RTM=SIM')
+
+# Quais ANO_NF existem para RTM=SIM?
+anos_rtm_sim = filtered_filtros_unique[filtered_filtros_unique['RTM'] == 'SIM']['ANO_NF'].unique()
+st.write("Anos presentes para RTM=SIM:", sorted(anos_rtm_sim))
+
+# Quais chassis RTM=SIM não estão em nenhum dos anos filtrados?
+todos_anos_filtrados = set(anos_disponiveis)
+chassis_fora_anos = filtered_filtros_unique[
+    (filtered_filtros_unique['RTM'] == 'SIM') & (~filtered_filtros_unique['ANO_NF'].isin(todos_anos_filtrados))
+]['NUM_SERIAL']
+st.write("Chassis RTM=SIM fora dos anos filtrados:", list(chassis_fora_anos))
+st.write("Qtd:", len(chassis_fora_anos))
+
+
 
 # --- Mapa ---
 st.header('📊 Distribuição Geográfica')
