@@ -1,36 +1,3 @@
-
-
-# --- Diagnóstico: comparação dos conjuntos de NUM_SERIAL RTM=SIM por ano ---
-# (deve ser executado após todos os filtros e definição de filtered_filtros_unique)
-if 'filtered_filtros_unique' in locals():
-    anos_disponiveis = sorted(filtered_filtros_unique['ANO_NF'].dropna().unique())
-    st.header('🔎 Diagnóstico de Conjuntos de NUM_SERIAL RTM=SIM por Ano')
-
-    # Coletar conjuntos por ano
-    conjuntos_por_ano = {}
-    for ano in anos_disponiveis:
-        conjuntos_por_ano[ano] = set(filtered_filtros_unique[(filtered_filtros_unique['RTM'] == 'SIM') & (filtered_filtros_unique['ANO_NF'] == ano)]['NUM_SERIAL'])
-
-    # União de todos os conjuntos por ano
-    uniao_anos = set().union(*conjuntos_por_ano.values())
-    st.write(f"Qtd NUM_SERIAL únicos na união de todos os anos: {len(uniao_anos)}")
-    st.write(f"Qtd NUM_SERIAL RTM=SIM total geral: {filtered_filtros_unique[filtered_filtros_unique['RTM'] == 'SIM']['NUM_SERIAL'].nunique()}")
-
-    # Diagnóstico: existe algum NUM_SERIAL RTM=SIM que está no total geral mas não aparece em nenhum ano?
-    total_geral_set = set(filtered_filtros_unique[filtered_filtros_unique['RTM'] == 'SIM']['NUM_SERIAL'])
-    faltando_nos_anos = total_geral_set - uniao_anos
-    st.write("NUM_SERIAL RTM=SIM no total geral mas não em nenhum ano:", list(faltando_nos_anos))
-    st.write("Qtd:", len(faltando_nos_anos))
-
-    # Diagnóstico: existe algum NUM_SERIAL que aparece em mais de um ano?
-    from collections import Counter
-    todos_nos_anos = []
-    for ano, conj in conjuntos_por_ano.items():
-        todos_nos_anos.extend(list(conj))
-    contagem = Counter(todos_nos_anos)
-    mais_de_um_ano = [num for num, count in contagem.items() if count > 1]
-    st.write("NUM_SERIAL RTM=SIM que aparecem em mais de um ano:", mais_de_um_ano)
-    st.write("Qtd:", len(mais_de_um_ano))
 import streamlit as st
 import pandas as pd
 import json
@@ -320,25 +287,6 @@ col10.metric('Média Valor Total (R$)', f"R$ {media_valor_total:,.2f}".replace('
 col11.metric('Média Valor Peça (R$)', f"R$ {media_valor_peca:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
 col12.metric('Soma Valor Total (R$)', f"R$ {soma_valor_total:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
 col13.metric('Soma Valor Peça (R$)', f"R$ {soma_valor_peca:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
-
-
-# --- Diagnóstico de anos e chassis RTM=SIM fora dos anos filtrados ---
-anos_disponiveis = sorted(filtered_filtros_unique['ANO_NF'].dropna().unique())
-st.header('🔎 Diagnóstico de Anos e Chassis RTM=SIM')
-
-# Quais ANO_NF existem para RTM=SIM?
-anos_rtm_sim = filtered_filtros_unique[filtered_filtros_unique['RTM'] == 'SIM']['ANO_NF'].unique()
-st.write("Anos presentes para RTM=SIM:", sorted(anos_rtm_sim))
-
-# Quais chassis RTM=SIM não estão em nenhum dos anos filtrados?
-todos_anos_filtrados = set(anos_disponiveis)
-chassis_fora_anos = filtered_filtros_unique[
-    (filtered_filtros_unique['RTM'] == 'SIM') & (~filtered_filtros_unique['ANO_NF'].isin(todos_anos_filtrados))
-]['NUM_SERIAL']
-st.write("Chassis RTM=SIM fora dos anos filtrados:", list(chassis_fora_anos))
-st.write("Qtd:", len(chassis_fora_anos))
-
-
 
 # --- Mapa ---
 st.header('📊 Distribuição Geográfica')
