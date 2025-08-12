@@ -288,7 +288,9 @@ col11.metric('Média Valor Peça (R$)', f"R$ {media_valor_peca:,.2f}".replace(',
 col12.metric('Soma Valor Total (R$)', f"R$ {soma_valor_total:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
 col13.metric('Soma Valor Peça (R$)', f"R$ {soma_valor_peca:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
 
+
 # --- Diagnóstico de anos e chassis RTM=SIM fora dos anos filtrados ---
+anos_disponiveis = sorted(filtered_filtros_unique['ANO_NF'].dropna().unique())
 st.header('🔎 Diagnóstico de Anos e Chassis RTM=SIM')
 
 # Quais ANO_NF existem para RTM=SIM?
