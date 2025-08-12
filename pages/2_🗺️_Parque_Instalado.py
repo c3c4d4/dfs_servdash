@@ -309,10 +309,8 @@ pct_dentro_eletr = 100 * qtd_dentro_eletr / total_eletr if total_eletr else 0
 pct_fora_eletr = 100 * qtd_fora_eletr / total_eletr if total_eletr else 0
 fim_garan_eletrica_min = filtered_filtros_unique['FIM_GARAN_ELETRICA'].min() if len(filtered_filtros_unique) > 0 else ''
 fim_garan_eletrica_max = filtered_filtros_unique['FIM_GARAN_ELETRICA'].max() if len(filtered_filtros_unique) > 0 else ''
-col14.metric('Média Garantia Eletrônica (dias)', f"{media_garan_eletr:.0f}")
-col15.metric('% Dentro Garantia Eletrônica', f"{pct_dentro_eletr:.1f}%")
-col16.metric('% Fora Garantia Eletrônica', f"{pct_fora_eletr:.1f}%")
-col17.metric('FIM Garantia Eletrônica (min/max)', f"{fim_garan_eletrica_min} / {fim_garan_eletrica_max}")
+col14.metric('% Dentro Garantia Eletrônica', f"{pct_dentro_eletr:.1f}%")
+col15.metric('% Fora Garantia Eletrônica', f"{pct_fora_eletr:.1f}%")
 
 # --- Mapa ---
 st.header('📊 Distribuição Geográfica')
