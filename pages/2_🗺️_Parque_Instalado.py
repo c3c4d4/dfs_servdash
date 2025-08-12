@@ -1,3 +1,12 @@
+# Adiciona colunas de Garantia Eletrônica
+from datetime import timedelta
+filtered_filtros_unique['FIM_GARAN_ELETRICA'] = pd.to_datetime(filtered_filtros_unique['DT_NUM_NF'], errors='coerce') + timedelta(days=365)
+filtered_filtros_unique['FIM_GARAN_ELETRICA'] = filtered_filtros_unique['FIM_GARAN_ELETRICA'].dt.strftime('%d/%m/%Y')
+hoje = pd.Timestamp.now().normalize()
+fim_garan_eletrica_dt = pd.to_datetime(filtered_filtros_unique['FIM_GARAN_ELETRICA'], format='%d/%m/%Y', errors='coerce')
+filtered_filtros_unique['STATUS_GARAN_ELETRICA'] = ['DENTRO' if (pd.notnull(fim) and hoje <= fim) else 'FORA' for fim in fim_garan_eletrica_dt]
+# Adiciona coluna de Garantia Eletrônica (default 365 dias)
+filtered_filtros_unique['GARANTIA_ELETRONICA'] = 365
 import streamlit as st
 import pandas as pd
 import json
@@ -281,12 +290,28 @@ col7.metric('% Em Garantia', f"{pct_em_garantia:.1f}%")
 col8.metric('% Fora de Garantia', f"{pct_fora_garantia:.1f}%")
 col9.metric('Média Chamados/Bomba', f"{media_chamados:.1f}")
 
+
 # Segunda linha de KPIs - Valores
 col10, col11, col12, col13 = st.columns(4)
 col10.metric('Média Valor Total (R$)', f"R$ {media_valor_total:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
 col11.metric('Média Valor Peça (R$)', f"R$ {media_valor_peca:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
 col12.metric('Soma Valor Total (R$)', f"R$ {soma_valor_total:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
 col13.metric('Soma Valor Peça (R$)', f"R$ {soma_valor_peca:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
+
+# Terceira linha de KPIs - Garantia Eletrônica
+col14, col15, col16, col17 = st.columns(4)
+media_garan_eletr = filtered_filtros_unique['GARANTIA_ELETRONICA'].mean() if len(filtered_filtros_unique) > 0 else 0
+qtd_dentro_eletr = (filtered_filtros_unique['STATUS_GARAN_ELETRICA'] == 'DENTRO').sum()
+qtd_fora_eletr = (filtered_filtros_unique['STATUS_GARAN_ELETRICA'] == 'FORA').sum()
+total_eletr = qtd_dentro_eletr + qtd_fora_eletr
+pct_dentro_eletr = 100 * qtd_dentro_eletr / total_eletr if total_eletr else 0
+pct_fora_eletr = 100 * qtd_fora_eletr / total_eletr if total_eletr else 0
+fim_garan_eletrica_min = filtered_filtros_unique['FIM_GARAN_ELETRICA'].min() if len(filtered_filtros_unique) > 0 else ''
+fim_garan_eletrica_max = filtered_filtros_unique['FIM_GARAN_ELETRICA'].max() if len(filtered_filtros_unique) > 0 else ''
+col14.metric('Média Garantia Eletrônica (dias)', f"{media_garan_eletr:.0f}")
+col15.metric('% Dentro Garantia Eletrônica', f"{pct_dentro_eletr:.1f}%")
+col16.metric('% Fora Garantia Eletrônica', f"{pct_fora_eletr:.1f}%")
+col17.metric('FIM Garantia Eletrônica (min/max)', f"{fim_garan_eletrica_min} / {fim_garan_eletrica_max}")
 
 # --- Mapa ---
 st.header('📊 Distribuição Geográfica')
@@ -356,10 +381,11 @@ else:
 # --- Tabela Detalhada ---
 st.header('📋 Detalhamento das Bombas')
 
+
 # Prepare table data
 colunas_tabela = [
     'NUM_SERIAL', 'UF', 'CIDADE', 'CLIENTE', 'RTM', 'STATUS_GARANTIA', 'FIM_GARANTIA', 
-    'ANO_NF', 'DT_NUM_NF', 'GARANTIA'
+    'ANO_NF', 'DT_NUM_NF', 'GARANTIA', 'GARANTIA_ELETRONICA', 'FIM_GARAN_ELETRICA', 'STATUS_GARAN_ELETRICA'
 ]
 
 # Add call count column (excluindo [STB])
