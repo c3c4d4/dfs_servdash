@@ -1,12 +1,4 @@
-# Adiciona colunas de Garantia Eletrônica
 from datetime import timedelta
-filtered_filtros_unique['FIM_GARAN_ELETRICA'] = pd.to_datetime(filtered_filtros_unique['DT_NUM_NF'], errors='coerce') + timedelta(days=365)
-filtered_filtros_unique['FIM_GARAN_ELETRICA'] = filtered_filtros_unique['FIM_GARAN_ELETRICA'].dt.strftime('%d/%m/%Y')
-hoje = pd.Timestamp.now().normalize()
-fim_garan_eletrica_dt = pd.to_datetime(filtered_filtros_unique['FIM_GARAN_ELETRICA'], format='%d/%m/%Y', errors='coerce')
-filtered_filtros_unique['STATUS_GARAN_ELETRICA'] = ['DENTRO' if (pd.notnull(fim) and hoje <= fim) else 'FORA' for fim in fim_garan_eletrica_dt]
-# Adiciona coluna de Garantia Eletrônica (default 365 dias)
-filtered_filtros_unique['GARANTIA_ELETRONICA'] = 365
 import streamlit as st
 import pandas as pd
 import json
@@ -274,6 +266,15 @@ else:
     media_valor_peca = 0
     soma_valor_total = 0
     soma_valor_peca = 0
+
+
+# --- Adiciona colunas de Garantia Eletrônica (após todos os filtros) ---
+filtered_filtros_unique['GARANTIA_ELETRONICA'] = 365
+filtered_filtros_unique['FIM_GARAN_ELETRICA'] = pd.to_datetime(filtered_filtros_unique['DT_NUM_NF'], errors='coerce') + timedelta(days=365)
+filtered_filtros_unique['FIM_GARAN_ELETRICA'] = filtered_filtros_unique['FIM_GARAN_ELETRICA'].dt.strftime('%d/%m/%Y')
+hoje = pd.Timestamp.now().normalize()
+fim_garan_eletrica_dt = pd.to_datetime(filtered_filtros_unique['FIM_GARAN_ELETRICA'], format='%d/%m/%Y', errors='coerce')
+filtered_filtros_unique['STATUS_GARAN_ELETRICA'] = ['DENTRO' if (pd.notnull(fim) and hoje <= fim) else 'FORA' for fim in fim_garan_eletrica_dt]
 
 # --- KPIs ---
 st.title('🗺️ Parque Instalado - Análise por Estado')
