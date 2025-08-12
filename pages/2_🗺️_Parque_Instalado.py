@@ -297,6 +297,24 @@ col11.metric('Média Valor Peça (R$)', f"R$ {media_valor_peca:,.2f}".replace(',
 col12.metric('Soma Valor Total (R$)', f"R$ {soma_valor_total:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
 col13.metric('Soma Valor Peça (R$)', f"R$ {soma_valor_peca:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
 
+
+# --- Diagnóstico RTM=SIM por ano vs geral ---
+st.header('🔎 Diagnóstico RTM=SIM por ano vs geral')
+
+# Conjunto geral RTM=SIM
+rtm_sim_geral = set(filtered_filtros_unique[filtered_filtros_unique['RTM'] == 'SIM']['NUM_SERIAL'])
+
+# Análise por ano disponível
+anos_disponiveis = sorted(filtered_filtros_unique['ANO_NF'].dropna().unique())
+for ano in anos_disponiveis:
+    rtm_sim_ano = set(filtered_filtros_unique[(filtered_filtros_unique['RTM'] == 'SIM') & (filtered_filtros_unique['ANO_NF'] == ano)]['NUM_SERIAL'])
+    diff_geral_menos_ano = rtm_sim_geral - rtm_sim_ano
+    diff_ano_menos_geral = rtm_sim_ano - rtm_sim_geral
+    st.write(f"Ano {ano}:")
+    st.write(f"No geral, mas não em {ano}: {diff_geral_menos_ano}")
+    st.write(f"Em {ano}, mas não no geral: {diff_ano_menos_geral}")
+    st.write(f"Qtd geral: {len(rtm_sim_geral)} | Qtd {ano}: {len(rtm_sim_ano)}")
+
 # --- Mapa ---
 st.header('📊 Distribuição Geográfica')
 
