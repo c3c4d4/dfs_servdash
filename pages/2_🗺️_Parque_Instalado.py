@@ -203,12 +203,19 @@ chassis_filtros_series = pd.Series(chassis_filtros)
 qtd_chamados_filtros = chassi_counts_validos.reindex(chassis_filtros_series, fill_value=0)
 media_chamados = qtd_chamados_filtros.mean() if total_bombas_filtro else 0
 
-# % com chamado e % sem chamado: agora baseados apenas no contexto filtrado
-# Se QTD_CHAMADOS > 0, então tem chamado
-com_chamado = qtd_chamados_filtros > 0
-pct_com_chamado = 100 * com_chamado.sum() / total_bombas_filtro if total_bombas_filtro else 0
-sem_chamado = ~com_chamado
-pct_sem_chamado = 100 * sem_chamado.sum() / total_bombas_filtro if total_bombas_filtro else 0
+# % com chamado de garantia (técnica + comercial): agora baseados apenas no contexto filtrado
+# Filtrar apenas chamados de garantia (técnica e comercial)
+chamados_garantia = chamados_considerados[
+    chamados_considerados['SERVIÇO'].str.contains('GARANTIA', na=False)
+]
+chassis_com_garantia = set(chamados_garantia['CHASSI'].unique())
+chassis_filtros_series = pd.Series(chassis_filtros)
+com_chamado_garantia = chassis_filtros_series.isin(chassis_com_garantia)
+pct_com_chamado = 100 * com_chamado_garantia.sum() / total_bombas_filtro if total_bombas_filtro else 0
+
+# % sem chamado de garantia
+sem_chamado_garantia = ~com_chamado_garantia
+pct_sem_chamado = 100 * sem_chamado_garantia.sum() / total_bombas_filtro if total_bombas_filtro else 0
 
 # % com partida inicial (DFS)
 com_partida_dfs = pd.Series(chassis_filtros).isin(partida_set)
@@ -284,8 +291,8 @@ col1, col2, col3, col4, col5, col6, col7, col8, col9 = st.columns(9)
 col1.metric('Total de Bombas', total_bombas_filtro)
 col2.metric('% Com Partida (DFS)', f"{pct_com_partida_dfs:.1f}%")
 col3.metric('% Com Partida (Terceiros)', f"{pct_com_partida_terceiros:.1f}%")
-col4.metric('% Com Chamado', f"{pct_com_chamado:.1f}%")
-col5.metric('% Sem Chamado', f"{pct_sem_chamado:.1f}%")
+col4.metric('% Com Chamado Garantia', f"{pct_com_chamado:.1f}%")
+col5.metric('% Sem Chamado Garantia', f"{pct_sem_chamado:.1f}%")
 col6.metric('% RTM', f"{pct_rtm:.1f}%")
 col7.metric('% Em Garantia', f"{pct_em_garantia:.1f}%")
 col8.metric('% Fora de Garantia', f"{pct_fora_garantia:.1f}%")
