@@ -256,7 +256,6 @@ col13.metric('Soma Valor Peça (R$)', f"R$ {soma_valor_peca:,.2f}".replace(',', 
 
 # Terceira linha de KPIs - Distribuição por Modelo
 if len(filtered_filtros_unique) > 0 and 'MODELO' in filtered_filtros_unique.columns:
-    st.markdown("### 📊 Distribuição por Modelo")
     
     # Calculate model distribution
     total = len(filtered_filtros_unique)

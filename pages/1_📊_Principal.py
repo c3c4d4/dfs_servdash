@@ -119,8 +119,7 @@ def kpi_section(df):
     
     # Second row - model distribution KPIs
     if len(df) > 0 and 'MODELO' in df.columns:
-        st.markdown("### 📊 Distribuição por Modelo")
-        
+            
         # Calculate model distribution
         total = len(df)
         model_counts = df['MODELO'].value_counts()
