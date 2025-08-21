@@ -622,4 +622,29 @@ def create_kpi_metrics(df: pd.DataFrame) -> Dict[str, Any]:
         'aging_medio': aging_medio,
         'pct_garantia': pct_garantia,
         'pct_rtm': pct_rtm
-    } 
+    }
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def create_model_kpi_metrics(df: pd.DataFrame) -> Dict[str, float]:
+    """Creates model percentage KPIs with optimizations."""
+    if len(df) == 0 or 'MODELO' not in df.columns:
+        return {}
+    
+    # Calculate model distribution
+    total = len(df)
+    model_counts = df['MODELO'].value_counts()
+    model_percentages = {}
+    
+    # Get the main models and sort them
+    main_models = ['HELIX', 'VISTA', 'CENTURY', '3G', 'E123', '7502A']
+    
+    for model in main_models:
+        count = model_counts.get(model, 0)
+        percentage = (count / total * 100) if total > 0 else 0
+        model_percentages[f'pct_{model.lower()}'] = percentage
+    
+    # Add "Others" percentage
+    others_count = model_counts[~model_counts.index.isin(main_models)].sum()
+    model_percentages['pct_others'] = (others_count / total * 100) if total > 0 else 0
+    
+    return model_percentages 

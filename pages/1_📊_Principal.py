@@ -107,7 +107,9 @@ def exibir_logo_sidebar(path_logo, largura=200):
 def kpi_section(df):
     """Calculate and display KPIs with optimizations."""
     metrics = vz.create_kpi_metrics(df)
+    model_metrics = vz.create_model_kpi_metrics(df)
     
+    # First row - main KPIs
     col1, col2, col3, col4, col5, col6 = st.columns(6)
     col1.metric('Total de Chamados', metrics['total'])
     col2.metric('Abertos', metrics['abertos'])
@@ -115,6 +117,18 @@ def kpi_section(df):
     col4.metric('Aging Médio (dias)', f"{metrics['aging_medio']:.1f}" if not pd.isna(metrics['aging_medio']) else '-')
     col5.metric('% Dentro da Garantia', f"{metrics['pct_garantia']:.1f}%")
     col6.metric('% RTM', f"{metrics['pct_rtm']:.1f}%")
+    
+    # Second row - model distribution KPIs
+    if model_metrics:
+        st.markdown("### 📊 Distribuição por Modelo")
+        col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
+        col1.metric('% HELIX', f"{model_metrics.get('pct_helix', 0):.1f}%")
+        col2.metric('% VISTA', f"{model_metrics.get('pct_vista', 0):.1f}%")
+        col3.metric('% CENTURY', f"{model_metrics.get('pct_century', 0):.1f}%")
+        col4.metric('% 3G', f"{model_metrics.get('pct_3g', 0):.1f}%")
+        col5.metric('% E123', f"{model_metrics.get('pct_e123', 0):.1f}%")
+        col6.metric('% 7502A', f"{model_metrics.get('pct_7502a', 0):.1f}%")
+        col7.metric('% Outros', f"{model_metrics.get('pct_others', 0):.1f}%")
 
 def main():
     # Load data with optimizations

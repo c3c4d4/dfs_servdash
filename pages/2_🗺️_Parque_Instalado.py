@@ -254,6 +254,19 @@ col11.metric('Média Valor Peça (R$)', f"R$ {media_valor_peca:,.2f}".replace(',
 col12.metric('Soma Valor Total (R$)', f"R$ {soma_valor_total:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
 col13.metric('Soma Valor Peça (R$)', f"R$ {soma_valor_peca:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
 
+# Terceira linha de KPIs - Distribuição por Modelo
+model_metrics = vz.create_model_kpi_metrics(filtered_filtros_unique)
+if model_metrics:
+    st.markdown("### 📊 Distribuição por Modelo")
+    col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
+    col1.metric('% HELIX', f"{model_metrics.get('pct_helix', 0):.1f}%")
+    col2.metric('% VISTA', f"{model_metrics.get('pct_vista', 0):.1f}%")
+    col3.metric('% CENTURY', f"{model_metrics.get('pct_century', 0):.1f}%")
+    col4.metric('% 3G', f"{model_metrics.get('pct_3g', 0):.1f}%")
+    col5.metric('% E123', f"{model_metrics.get('pct_e123', 0):.1f}%")
+    col6.metric('% 7502A', f"{model_metrics.get('pct_7502a', 0):.1f}%")
+    col7.metric('% Outros', f"{model_metrics.get('pct_others', 0):.1f}%")
+
 # Terceira linha de KPIs - Garantia Eletrônica e Distribuição por Faixas
 col14, col15, col16, col17, col18, col19, col20 = st.columns(7)
 
