@@ -428,14 +428,55 @@ def choropleth_map_brazil(df: pd.DataFrame, estado_counts: pd.DataFrame) -> Any:
                 fitbounds="locations"
             )
             
-            # Update the labels trace to show only text
+            # Update the labels trace to show only text with border
             fig_labels.update_traces(
                 mode='text',
-                textfont=dict(size=12, color='white', family="Arial Black"),
+                textfont=dict(
+                    size=14, 
+                    color='white', 
+                    family="Arial Black"
+                ),
+                textposition='middle center',
                 marker=dict(size=0),  # Hide markers
                 showlegend=False,
                 hoverinfo='skip'
             )
+            
+            # Add black text shadow/border effect by adding multiple text traces with slight offsets
+            shadow_offsets = [
+                (-0.1, -0.1), (-0.1, 0), (-0.1, 0.1),
+                (0, -0.1), (0, 0.1),
+                (0.1, -0.1), (0.1, 0), (0.1, 0.1)
+            ]
+            
+            for offset_x, offset_y in shadow_offsets:
+                shadow_df = label_df.copy()
+                shadow_df['lat'] = shadow_df['lat'] + offset_y
+                shadow_df['lon'] = shadow_df['lon'] + offset_x
+                
+                fig_shadow = px.scatter_geo(
+                    shadow_df,
+                    lat='lat',
+                    lon='lon',
+                    text='text'
+                )
+                
+                fig_shadow.update_traces(
+                    mode='text',
+                    textfont=dict(
+                        size=14, 
+                        color='black', 
+                        family="Arial Black"
+                    ),
+                    textposition='middle center',
+                    marker=dict(size=0),
+                    showlegend=False,
+                    hoverinfo='skip'
+                )
+                
+                # Add shadow traces first (they'll be behind the white text)
+                for trace in fig_shadow.data:
+                    fig.add_trace(trace)
             
             # Add the text traces to the main figure
             for trace in fig_labels.data:
