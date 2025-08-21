@@ -100,19 +100,19 @@ if analysis_type == "Predição de Falhas":
             col3.metric("RMSE", f"{model_results['rmse']:.2f}")
             col4.metric("Features Utilizadas", len(model_results['features']))
             
-            # Feature importance
-            st.subheader("🎯 Importância das Características")
-            fig_importance = px.bar(
-                model_results['feature_importance'].head(10),
-                x='importance',
-                y='feature',
-                orientation='h',
-                title="Top 10 Características Mais Importantes",
-                color='importance',
-                color_continuous_scale='viridis'
-            )
-            fig_importance.update_layout(height=400)
-            st.plotly_chart(fig_importance, use_container_width=True)
+            # # Feature importance
+            # st.subheader("🎯 Importância das Características")
+            # fig_importance = px.bar(
+            #     model_results['feature_importance'].head(10),
+            #     x='importance',
+            #     y='feature',
+            #     orientation='h',
+            #     title="Top 10 Características Mais Importantes",
+            #     color='importance',
+            #     color_continuous_scale='viridis'
+            # )
+            # fig_importance.update_layout(height=400)
+            # st.plotly_chart(fig_importance, use_container_width=True)
             
             # Predictions
             predictions_df = aa.failure_predictor.predict_failures(features_df, model_results)
