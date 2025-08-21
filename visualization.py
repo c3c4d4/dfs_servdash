@@ -278,12 +278,22 @@ def bar_chart_aging_mantenedor(df: pd.DataFrame) -> Any:
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def choropleth_map_brazil(df: pd.DataFrame, estado_counts: pd.DataFrame) -> Any:
-    """Creates a choropleth map of Brazil with optimizations."""
+    """Creates a choropleth map of Brazil with optimizations and percentages."""
     try:
         # Try to load GeoJSON data
         with open('brazil_states.geojson', 'r', encoding='utf-8') as f:
             import json
             brazil_states = json.load(f)
+        
+        # Calculate total and percentages
+        total_bombas = estado_counts['Quantidade'].sum()
+        estado_counts = estado_counts.copy()
+        estado_counts['Percentual'] = (estado_counts['Quantidade'] / total_bombas * 100).round(1)
+        estado_counts['Hover_Text'] = (
+            estado_counts['UF'] + '<br>' +
+            'Quantidade: ' + estado_counts['Quantidade'].astype(str) + '<br>' +
+            'Percentual: ' + estado_counts['Percentual'].astype(str) + '%'
+        )
         
         # Check if we have matching states - try different property names
         geojson_states = set()
@@ -339,16 +349,42 @@ def choropleth_map_brazil(df: pd.DataFrame, estado_counts: pd.DataFrame) -> Any:
             if matching_mapped > 0:
                 # Use mapped data
                 estado_counts = estado_counts_mapped.rename(columns={'UF_MAPPED': 'UF'})
+                # Recalculate hover text after mapping
+                estado_counts['Hover_Text'] = (
+                    estado_counts['UF'] + '<br>' +
+                    'Quantidade: ' + estado_counts['Quantidade'].astype(str) + '<br>' +
+                    'Percentual: ' + estado_counts['Percentual'].astype(str) + '%'
+                )
         
+        # Use a more contrasting color scale for better proportional visualization
         fig = px.choropleth(
             estado_counts,
             geojson=brazil_states,
             locations='UF',
             featureidkey=featureidkey,
             color='Quantidade',
-            color_continuous_scale="Blues",
-            title="Distribuição de Bombas por Estado",
-            labels={'Quantidade': 'Quantidade de Bombas'}
+            hover_data=['Percentual'],
+            color_continuous_scale=[
+                [0.0, "#f7fbff"],
+                [0.125, "#deebf7"],
+                [0.25, "#c6dbef"],
+                [0.375, "#9ecae1"],
+                [0.5, "#6baed6"],
+                [0.625, "#4292c6"],
+                [0.75, "#2171b5"],
+                [0.875, "#08519c"],
+                [1.0, "#08306b"]
+            ],
+            title="Distribuição de Bombas por Estado (com %)",
+            labels={'Quantidade': 'Quantidade de Bombas', 'Percentual': 'Percentual (%)'}
+        )
+        
+        # Update hover template to show percentages
+        fig.update_traces(
+            hovertemplate="<b>%{location}</b><br>" +
+                         "Quantidade: %{z}<br>" +
+                         "Percentual: %{customdata[0]:.1f}%<extra></extra>",
+            customdata=estado_counts[['Percentual']].values
         )
         
         fig.update_geos(
@@ -375,17 +411,40 @@ def choropleth_map_brazil(df: pd.DataFrame, estado_counts: pd.DataFrame) -> Any:
         return fig
         
     except (FileNotFoundError, json.JSONDecodeError, Exception) as e:
-        # Fallback: Create a simple bar chart if GeoJSON is not available
+        # Fallback: Create a simple bar chart if GeoJSON is not available with percentages
         st.warning(f"⚠️ Erro ao carregar mapa geográfico: {str(e)}. Exibindo gráfico de barras como alternativa.")
+        
+        # Calculate percentages for fallback chart
+        total_bombas = estado_counts['Quantidade'].sum()
+        estado_counts = estado_counts.copy()
+        estado_counts['Percentual'] = (estado_counts['Quantidade'] / total_bombas * 100).round(1)
         
         fig = px.bar(
             estado_counts,
             x='UF',
             y='Quantidade',
             color='Quantidade',
-            color_continuous_scale="Blues",
-            title="Distribuição de Bombas por Estado",
-            labels={'Quantidade': 'Quantidade de Bombas', 'UF': 'Estado'}
+            hover_data=['Percentual'],
+            color_continuous_scale=[
+                [0.0, "#f7fbff"],
+                [0.125, "#deebf7"],
+                [0.25, "#c6dbef"],
+                [0.375, "#9ecae1"],
+                [0.5, "#6baed6"],
+                [0.625, "#4292c6"],
+                [0.75, "#2171b5"],
+                [0.875, "#08519c"],
+                [1.0, "#08306b"]
+            ],
+            title="Distribuição de Bombas por Estado (com %)",
+            labels={'Quantidade': 'Quantidade de Bombas', 'UF': 'Estado', 'Percentual': 'Percentual (%)'}
+        )
+        
+        # Update hover template for bar chart
+        fig.update_traces(
+            hovertemplate="<b>%{x}</b><br>" +
+                         "Quantidade: %{y}<br>" +
+                         "Percentual: %{customdata[0]:.1f}%<extra></extra>"
         )
         
         fig.update_layout(
