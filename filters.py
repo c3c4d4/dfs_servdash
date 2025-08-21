@@ -286,28 +286,28 @@ def sidebar_filters_rtm_errors(erros_rtm_df: pd.DataFrame) -> Dict[str, Any]:
     
     # TIPO_ERRO (multiselect - empty means all)
     tipo_erro_sel = st.sidebar.multiselect(
-        'Tipo de Erro (vazio = todos)', 
+        'Tipo de Erro', 
         tipo_erro_options,
         help="Selecione um ou mais tipos de erro. Deixe vazio para incluir todos."
     )
     
     # DESC_ERRO (multiselect)
     desc_erro_sel = st.sidebar.multiselect(
-        'Descrição do Erro (vazio = todos)', 
+        'Descrição do Erro', 
         desc_erro_options,
         help="Selecione uma ou mais descrições. Deixe vazio para incluir todas."
     )
     
     # CÓD_ERRO (multiselect)
     cod_erro_sel = st.sidebar.multiselect(
-        'Código do Erro (vazio = todos)', 
+        'Código do Erro', 
         cod_erro_options,
         help="Selecione um ou mais códigos. Deixe vazio para incluir todos."
     )
     
     # DETALHES_ERRO (multiselect)
     detalhes_erro_sel = st.sidebar.multiselect(
-        'Detalhes do Erro (vazio = todos)', 
+        'Detalhes do Erro', 
         detalhes_erro_options,
         help="Selecione um ou mais detalhes. Deixe vazio para incluir todos."
     )
