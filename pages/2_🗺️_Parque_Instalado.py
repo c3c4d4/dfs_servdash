@@ -352,13 +352,18 @@ st.header('📋 Detalhamento das Bombas')
 
 # Ensure missing columns are added with default values
 if 'MODELO' not in filtered_filtros_unique.columns:
-    # If MODELO doesn't exist, try to create it from available serial columns
-    serial_columns = [col for col in filtered_filtros_unique.columns if 'SERIAL' in col or 'SERIE' in col]
-    if serial_columns:
-        from utils import extrair_modelo_vectorized
-        filtered_filtros_unique['MODELO'] = extrair_modelo_vectorized(filtered_filtros_unique[serial_columns[0]])
+    # If MODELO doesn't exist, try to create it from available columns (prioritize ITEM)
+    from utils import extrair_modelo_vectorized
+    
+    if 'ITEM' in filtered_filtros_unique.columns:
+        filtered_filtros_unique['MODELO'] = extrair_modelo_vectorized(filtered_filtros_unique['ITEM'])
     else:
-        filtered_filtros_unique['MODELO'] = 'N/A'
+        # Fallback to serial columns
+        serial_columns = [col for col in filtered_filtros_unique.columns if 'SERIAL' in col or 'SERIE' in col]
+        if serial_columns:
+            filtered_filtros_unique['MODELO'] = extrair_modelo_vectorized(filtered_filtros_unique[serial_columns[0]])
+        else:
+            filtered_filtros_unique['MODELO'] = 'N/A'
 
 # Prepare table data
 colunas_tabela_requested = [

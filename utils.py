@@ -137,18 +137,30 @@ def extrair_modelo_vectorized(serie_series: pd.Series) -> pd.Series:
         
         # Model mapping based on prefix before '-'
         model_mapping = {
-            'W7GVIS': 'VISTA',
-            'W7GCEN': 'CENTURY',
-            'W7HXH': 'HELIX',
-            'W7HX1': 'HELIX',
             'W7E123': 'E123',
-            '3G3384P': '3G',
-            'W9000001': 'HELIX',
             'W7HX2': 'HELIX',
-            '3G2203P': '3G',
+            'W7HXH': 'HELIX',
+            '3G2209P': '3G',
             'W7HX6': 'HELIX',
-            '7502A': '7502A',
+            'W7HX1': 'HELIX',
+            '3G2203P': '3G',
+            '3G3389P': '3G',
+            '3G3390P': '3G',
+            '3G2201P': '3G',
+            '3G3394P': '3G',
+            '3G3490P': '3G',
+            'E123LARLA3': 'E123',
             '3G2204P': '3G',
+            '3G2202P': '3G',
+            '3G3384P': '3G',
+            '3G2207P': '3G',
+            '3G3494P': '3G',
+            '3G2221P': '3G',
+            'W7GCEN': 'CENTURY',
+            'W7GVIS': 'VISTA',
+            # Legacy mappings (keeping for compatibility)
+            'W9000001': 'HELIX',
+            '7502A': '7502A',
             'N3G2201PO': '3G',
             '3GV3490P': '3G'
         }
