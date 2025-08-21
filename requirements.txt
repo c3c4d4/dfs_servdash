@@ -11,3 +11,4 @@ dask
 numba
 psutil
 streamlit_dynamic_filters
+scikit-learn
