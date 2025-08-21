@@ -272,37 +272,45 @@ def prepare_rtm_error_filter_options(erros_rtm_df: pd.DataFrame) -> Dict[str, An
     }
 
 def sidebar_filters_rtm_errors(erros_rtm_df: pd.DataFrame) -> Dict[str, Any]:
-    """Create RTM error filters in the sidebar with exclusive filtering."""
+    """Create RTM error filters in the sidebar with multiple selection."""
     st.sidebar.header('🔧 Filtros de Erros RTM')
     
     # Get prepared filter options
     filter_data = prepare_rtm_error_filter_options(erros_rtm_df)
     
-    # TIPO_ERRO (primary filter)
-    tipo_erro_sel = st.sidebar.selectbox('Tipo de Erro', filter_data["tipo_erro_options"])
+    # Remove 'TODOS' from options for multiselect and use empty list as default (all selected)
+    tipo_erro_options = [opt for opt in filter_data["tipo_erro_options"] if opt != 'TODOS']
+    desc_erro_options = [opt for opt in filter_data["desc_erro_options"] if opt != 'TODOS']
+    cod_erro_options = [opt for opt in filter_data["cod_erro_options"] if opt != 'TODOS'] 
+    detalhes_erro_options = [opt for opt in filter_data["detalhes_erro_options"] if opt != 'TODOS']
     
-    # Filter data based on TIPO_ERRO selection for exclusive filtering
-    if tipo_erro_sel != 'TODOS':
-        filtered_erros = erros_rtm_df[erros_rtm_df['TIPO_ERRO'] == tipo_erro_sel]
-        
-        # Update options based on selected TIPO_ERRO
-        desc_erro_options = ['TODOS'] + sorted(filtered_erros['DESC_ERRO'].dropna().replace('', pd.NA).dropna().drop_duplicates().unique())
-        cod_erro_options = ['TODOS'] + sorted(filtered_erros['CÓD_ERRO'].dropna().replace('', pd.NA).dropna().drop_duplicates().unique())
-        detalhes_erro_options = ['TODOS'] + sorted(filtered_erros['DETALHES_ERRO'].dropna().replace('', pd.NA).dropna().drop_duplicates().unique())
-    else:
-        filtered_erros = erros_rtm_df
-        desc_erro_options = filter_data["desc_erro_options"]
-        cod_erro_options = filter_data["cod_erro_options"]
-        detalhes_erro_options = filter_data["detalhes_erro_options"]
+    # TIPO_ERRO (multiselect - empty means all)
+    tipo_erro_sel = st.sidebar.multiselect(
+        'Tipo de Erro (vazio = todos)', 
+        tipo_erro_options,
+        help="Selecione um ou mais tipos de erro. Deixe vazio para incluir todos."
+    )
     
-    # DESC_ERRO
-    desc_erro_sel = st.sidebar.selectbox('Descrição do Erro', desc_erro_options)
+    # DESC_ERRO (multiselect)
+    desc_erro_sel = st.sidebar.multiselect(
+        'Descrição do Erro (vazio = todos)', 
+        desc_erro_options,
+        help="Selecione uma ou mais descrições. Deixe vazio para incluir todas."
+    )
     
-    # CÓD_ERRO
-    cod_erro_sel = st.sidebar.selectbox('Código do Erro', cod_erro_options)
+    # CÓD_ERRO (multiselect)
+    cod_erro_sel = st.sidebar.multiselect(
+        'Código do Erro (vazio = todos)', 
+        cod_erro_options,
+        help="Selecione um ou mais códigos. Deixe vazio para incluir todos."
+    )
     
-    # DETALHES_ERRO
-    detalhes_erro_sel = st.sidebar.selectbox('Detalhes do Erro', detalhes_erro_options)
+    # DETALHES_ERRO (multiselect)
+    detalhes_erro_sel = st.sidebar.multiselect(
+        'Detalhes do Erro (vazio = todos)', 
+        detalhes_erro_options,
+        help="Selecione um ou mais detalhes. Deixe vazio para incluir todos."
+    )
     
     return {
         "tipo_erro_sel": tipo_erro_sel,
@@ -318,30 +326,31 @@ def aplicar_filtros_rtm_errors(
     erros_rtm_df: pd.DataFrame,
     chamados_por_chassi_dict: Dict[str, List[str]]
 ) -> pd.DataFrame:
-    """Apply RTM error filters with exclusive filtering logic."""
+    """Apply RTM error filters with multiple selection support."""
     df_filtrado = df.copy()
     
-    # If no RTM filters are selected, return original data
-    if (filtros_rtm["tipo_erro_sel"] == 'TODOS' and 
-        filtros_rtm["desc_erro_sel"] == 'TODOS' and 
-        filtros_rtm["cod_erro_sel"] == 'TODOS' and 
-        filtros_rtm["detalhes_erro_sel"] == 'TODOS'):
+    # If no RTM filters are selected (all lists empty), return original data
+    if (not filtros_rtm["tipo_erro_sel"] and 
+        not filtros_rtm["desc_erro_sel"] and 
+        not filtros_rtm["cod_erro_sel"] and 
+        not filtros_rtm["detalhes_erro_sel"]):
         return df_filtrado
     
     # Filter RTM errors based on selections
     erros_filtrados = erros_rtm_df.copy()
     
-    if filtros_rtm["tipo_erro_sel"] != 'TODOS':
-        erros_filtrados = erros_filtrados[erros_filtrados['TIPO_ERRO'] == filtros_rtm["tipo_erro_sel"]]
+    # Apply filters - empty list means "all" (no filter)
+    if filtros_rtm["tipo_erro_sel"]:  # If not empty
+        erros_filtrados = erros_filtrados[erros_filtrados['TIPO_ERRO'].isin(filtros_rtm["tipo_erro_sel"])]
     
-    if filtros_rtm["desc_erro_sel"] != 'TODOS':
-        erros_filtrados = erros_filtrados[erros_filtrados['DESC_ERRO'] == filtros_rtm["desc_erro_sel"]]
+    if filtros_rtm["desc_erro_sel"]:  # If not empty
+        erros_filtrados = erros_filtrados[erros_filtrados['DESC_ERRO'].isin(filtros_rtm["desc_erro_sel"])]
     
-    if filtros_rtm["cod_erro_sel"] != 'TODOS':
-        erros_filtrados = erros_filtrados[erros_filtrados['CÓD_ERRO'] == filtros_rtm["cod_erro_sel"]]
+    if filtros_rtm["cod_erro_sel"]:  # If not empty
+        erros_filtrados = erros_filtrados[erros_filtrados['CÓD_ERRO'].isin(filtros_rtm["cod_erro_sel"])]
     
-    if filtros_rtm["detalhes_erro_sel"] != 'TODOS':
-        erros_filtrados = erros_filtrados[erros_filtrados['DETALHES_ERRO'] == filtros_rtm["detalhes_erro_sel"]]
+    if filtros_rtm["detalhes_erro_sel"]:  # If not empty
+        erros_filtrados = erros_filtrados[erros_filtrados['DETALHES_ERRO'].isin(filtros_rtm["detalhes_erro_sel"])]
     
     # Get SS numbers from filtered errors
     ss_filtrados = set(erros_filtrados['SS'].astype(str))

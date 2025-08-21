@@ -118,10 +118,27 @@ o2c = preprocess_o2c_data(o2c)
 chamados_por_chassi_dict, partida_set, chassi_counts, chassi_com_chamado = precompute_chamados_dicts(chamados)
 
 # --- Sidebar Filtros Dinâmicos ---
-filter_columns = ['UF', 'RTM', 'STATUS_GARANTIA', 'ANO_NF']  # You can add/remove columns as needed
+# Check available columns and add DURAÇÃO_GARANTIA if it exists
+available_filter_columns = ['UF', 'RTM', 'STATUS_GARANTIA', 'ANO_NF']
+if 'DURAÇÃO_GARANTIA' in o2c.columns:
+    available_filter_columns.append('DURAÇÃO_GARANTIA')
+elif 'DURACAO_GARANTIA' in o2c.columns:
+    available_filter_columns.append('DURACAO_GARANTIA')
+elif 'GARANTIA' in o2c.columns:
+    # If GARANTIA column exists, we'll create DURAÇÃO_GARANTIA categories
+    o2c['DURAÇÃO_GARANTIA'] = o2c['GARANTIA'].apply(lambda x: 
+        '6 meses (183 dias)' if x == 183 else
+        '12 meses (365 dias)' if x == 365 else
+        '18 meses (548 dias)' if x == 548 else
+        '24 meses (730 dias)' if x == 730 else
+        '36 meses (1095 dias)' if x == 1095 else
+        'Outros' if pd.notna(x) else 'Não informado'
+    )
+    available_filter_columns.append('DURAÇÃO_GARANTIA')
+
 with st.sidebar:
     st.write("Aplique os filtros em qualquer ordem 👇")
-    dynamic_filters = DynamicFilters(o2c, filters=filter_columns)
+    dynamic_filters = DynamicFilters(o2c, filters=available_filter_columns)
     dynamic_filters.display_filters(location='sidebar')
     considerar_stb = st.checkbox("Remover [STB]", value=False)
 
@@ -157,25 +174,28 @@ filtered_filtros_unique = aplicar_filtros_rtm_errors(filtered_filtros_unique, fi
 # Get only the SS present in the filtered RTM error set
 ss_filtrados = set(erros_rtm['SS'].astype(str))
 erros_filtrados = erros_rtm.copy()
-if filtros_rtm["tipo_erro_sel"] != 'TODOS':
-    erros_filtrados = erros_filtrados[erros_filtrados['TIPO_ERRO'] == filtros_rtm["tipo_erro_sel"]]
-if filtros_rtm["desc_erro_sel"] != 'TODOS':
-    erros_filtrados = erros_filtrados[erros_filtrados['DESC_ERRO'] == filtros_rtm["desc_erro_sel"]]
-if filtros_rtm["cod_erro_sel"] != 'TODOS':
-    erros_filtrados = erros_filtrados[erros_filtrados['CÓD_ERRO'] == filtros_rtm["cod_erro_sel"]]
-if filtros_rtm["detalhes_erro_sel"] != 'TODOS':
-    erros_filtrados = erros_filtrados[erros_filtrados['DETALHES_ERRO'] == filtros_rtm["detalhes_erro_sel"]]
+
+# Apply filters - now working with lists instead of single values
+if filtros_rtm["tipo_erro_sel"]:  # If not empty list
+    erros_filtrados = erros_filtrados[erros_filtrados['TIPO_ERRO'].isin(filtros_rtm["tipo_erro_sel"])]
+if filtros_rtm["desc_erro_sel"]:  # If not empty list
+    erros_filtrados = erros_filtrados[erros_filtrados['DESC_ERRO'].isin(filtros_rtm["desc_erro_sel"])]
+if filtros_rtm["cod_erro_sel"]:  # If not empty list
+    erros_filtrados = erros_filtrados[erros_filtrados['CÓD_ERRO'].isin(filtros_rtm["cod_erro_sel"])]
+if filtros_rtm["detalhes_erro_sel"]:  # If not empty list
+    erros_filtrados = erros_filtrados[erros_filtrados['DETALHES_ERRO'].isin(filtros_rtm["detalhes_erro_sel"])]
 ss_filtrados = set(erros_filtrados['SS'].astype(str))
 
 def count_chamados_for_chassi(chassi):
     ss_list = chamados_por_chassi_dict.get(chassi, [])
     return sum(1 for ss in ss_list if ss in ss_filtrados)
 
+# Check if any RTM filters are applied (any non-empty list)
 if any([
-    filtros_rtm["tipo_erro_sel"] != 'TODOS',
-    filtros_rtm["desc_erro_sel"] != 'TODOS',
-    filtros_rtm["cod_erro_sel"] != 'TODOS',
-    filtros_rtm["detalhes_erro_sel"] != 'TODOS',
+    filtros_rtm["tipo_erro_sel"],
+    filtros_rtm["desc_erro_sel"], 
+    filtros_rtm["cod_erro_sel"],
+    filtros_rtm["detalhes_erro_sel"],
 ]):
     filtered_filtros_unique['QTD_CHAMADOS'] = filtered_filtros_unique['NUM_SERIAL'].apply(count_chamados_for_chassi)
     # Remove everything with QTD_CHAMADOS < 1
