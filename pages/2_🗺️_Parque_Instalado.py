@@ -121,6 +121,11 @@ chamados_por_chassi_dict, partida_set, chassi_counts, chassi_com_chamado = preco
 # --- Sidebar Filtros Dinâmicos ---
 # Check available columns and add DURAÇÃO_GARANTIA if it exists
 available_filter_columns = ['UF', 'RTM', 'STATUS_GARANTIA', 'ANO_NF']
+
+# Add MODELO column to filters if it exists
+if 'MODELO' in o2c.columns:
+    available_filter_columns.append('MODELO')
+
 if 'DURAÇÃO_GARANTIA' in o2c.columns:
     available_filter_columns.append('DURAÇÃO_GARANTIA')
 elif 'DURACAO_GARANTIA' in o2c.columns:
@@ -345,18 +350,38 @@ else:
 # --- Tabela Detalhada ---
 st.header('📋 Detalhamento das Bombas')
 
+# Ensure missing columns are added with default values
+if 'MODELO' not in filtered_filtros_unique.columns:
+    # If MODELO doesn't exist, try to create it from available serial columns
+    serial_columns = [col for col in filtered_filtros_unique.columns if 'SERIAL' in col or 'SERIE' in col]
+    if serial_columns:
+        from utils import extrair_modelo_vectorized
+        filtered_filtros_unique['MODELO'] = extrair_modelo_vectorized(filtered_filtros_unique[serial_columns[0]])
+    else:
+        filtered_filtros_unique['MODELO'] = 'N/A'
 
 # Prepare table data
-colunas_tabela = [
+colunas_tabela_requested = [
     'NUM_SERIAL', 'MODELO', 'UF', 'CIDADE', 'CLIENTE', 'RTM', 'STATUS_GARANTIA', 'FIM_GARANTIA', 
     'ANO_NF', 'DT_NUM_NF', 'GARANTIA', 'GARANTIA_ELETRONICA', 'FIM_GARAN_ELETRICA', 'STATUS_GARAN_ELETRICA'
 ]
+
+# Only use columns that actually exist in the dataframe
+colunas_tabela = [col for col in colunas_tabela_requested if col in filtered_filtros_unique.columns]
 
 # QTD_CHAMADOS already calculated above using centralized function
 
 # Ensure CLIENTE column exists
 if 'CLIENTE' not in filtered_filtros_unique.columns:
     filtered_filtros_unique['CLIENTE'] = ''
+
+# Ensure electronic warranty columns exist (in case they weren't added properly)
+if 'GARANTIA_ELETRONICA' not in filtered_filtros_unique.columns:
+    filtered_filtros_unique['GARANTIA_ELETRONICA'] = 365
+if 'FIM_GARAN_ELETRICA' not in filtered_filtros_unique.columns:
+    filtered_filtros_unique['FIM_GARAN_ELETRICA'] = 'N/A'
+if 'STATUS_GARAN_ELETRICA' not in filtered_filtros_unique.columns:
+    filtered_filtros_unique['STATUS_GARAN_ELETRICA'] = 'N/A'
 
 # Add partida inicial info using business logic
 filtered_filtros_unique['PARTIDA_INICIAL'] = filtered_filtros_unique.apply(
@@ -368,27 +393,53 @@ filtered_filtros_unique['PARTIDA_INICIAL'] = filtered_filtros_unique.apply(
 if 'FIM_GARANTIA' in filtered_filtros_unique.columns:
     filtered_filtros_unique['FIM_GARANTIA'] = filtered_filtros_unique['FIM_GARANTIA'].dt.strftime('%d/%m/%Y')
 
+# Prepare columns for display
+display_columns = colunas_tabela + ['QTD_CHAMADOS', 'PARTIDA_INICIAL', 'CHAMADOS_LISTA']
+display_columns = [col for col in display_columns if col in filtered_filtros_unique.columns]
+
+# Create column config only for existing columns
+column_config = {}
+if "NUM_SERIAL" in filtered_filtros_unique.columns:
+    column_config["NUM_SERIAL"] = st.column_config.TextColumn("Número Serial", width="medium")
+if "MODELO" in filtered_filtros_unique.columns:
+    column_config["MODELO"] = st.column_config.TextColumn("Modelo", width="small")
+if "UF" in filtered_filtros_unique.columns:
+    column_config["UF"] = st.column_config.TextColumn("UF", width="small")
+if "CIDADE" in filtered_filtros_unique.columns:
+    column_config["CIDADE"] = st.column_config.TextColumn("Cidade", width="medium")
+if "CLIENTE" in filtered_filtros_unique.columns:
+    column_config["CLIENTE"] = st.column_config.TextColumn("Cliente", width="medium")
+if "RTM" in filtered_filtros_unique.columns:
+    column_config["RTM"] = st.column_config.TextColumn("RTM", width="small")
+if "STATUS_GARANTIA" in filtered_filtros_unique.columns:
+    column_config["STATUS_GARANTIA"] = st.column_config.TextColumn("Status Garantia", width="small")
+if "FIM_GARANTIA" in filtered_filtros_unique.columns:
+    column_config["FIM_GARANTIA"] = st.column_config.TextColumn("Fim Garantia", width="small")
+if "ANO_NF" in filtered_filtros_unique.columns:
+    column_config["ANO_NF"] = st.column_config.NumberColumn("Ano NF", format="%d", width="small")
+if "DT_NUM_NF" in filtered_filtros_unique.columns:
+    column_config["DT_NUM_NF"] = st.column_config.DateColumn("Data NF", format="DD/MM/YYYY", width="small")
+if "GARANTIA" in filtered_filtros_unique.columns:
+    column_config["GARANTIA"] = st.column_config.TextColumn("Garantia (dias)", width="small")
+if "QTD_CHAMADOS" in filtered_filtros_unique.columns:
+    column_config["QTD_CHAMADOS"] = st.column_config.NumberColumn("Qtd Chamados", format="%d", width="small")
+if "PARTIDA_INICIAL" in filtered_filtros_unique.columns:
+    column_config["PARTIDA_INICIAL"] = st.column_config.TextColumn("Partida Inicial", width="small")
+if "CHAMADOS_LISTA" in filtered_filtros_unique.columns:
+    column_config["CHAMADOS_LISTA"] = st.column_config.TextColumn("Chamados (SS)", width="large")
+if "GARANTIA_ELETRONICA" in filtered_filtros_unique.columns:
+    column_config["GARANTIA_ELETRONICA"] = st.column_config.TextColumn("Garantia Eletrônica", width="small")
+if "FIM_GARAN_ELETRICA" in filtered_filtros_unique.columns:
+    column_config["FIM_GARAN_ELETRICA"] = st.column_config.TextColumn("Fim Garantia Eletrônica", width="small")
+if "STATUS_GARAN_ELETRICA" in filtered_filtros_unique.columns:
+    column_config["STATUS_GARAN_ELETRICA"] = st.column_config.TextColumn("Status Garantia Eletrônica", width="small")
+
 # Display table
 st.dataframe(
-    filtered_filtros_unique[colunas_tabela + ['QTD_CHAMADOS', 'PARTIDA_INICIAL', 'CHAMADOS_LISTA']],
+    filtered_filtros_unique[display_columns],
     use_container_width=True,
     hide_index=True,
-    column_config={
-        "NUM_SERIAL": st.column_config.TextColumn("Número Serial", width="medium"),
-        "MODELO": st.column_config.TextColumn("Modelo", width="small"),
-        "UF": st.column_config.TextColumn("UF", width="small"),
-        "CIDADE": st.column_config.TextColumn("Cidade", width="medium"),
-        "CLIENTE": st.column_config.TextColumn("Cliente", width="medium"),
-        "RTM": st.column_config.TextColumn("RTM", width="small"),
-        "STATUS_GARANTIA": st.column_config.TextColumn("Status Garantia", width="small"),
-        "FIM_GARANTIA": st.column_config.TextColumn("Fim Garantia", width="small"),
-        "ANO_NF": st.column_config.NumberColumn("Ano NF", format="%d", width="small"),
-        "DT_NUM_NF": st.column_config.DateColumn("Data NF", format="DD/MM/YYYY", width="small"),
-        "GARANTIA": st.column_config.TextColumn("Garantia (dias)", width="small"),
-        "QTD_CHAMADOS": st.column_config.NumberColumn("Qtd Chamados", format="%d", width="small"),
-        "PARTIDA_INICIAL": st.column_config.TextColumn("Partida Inicial", width="small"),
-        "CHAMADOS_LISTA": st.column_config.TextColumn("Chamados (SS)", width="large")
-    }
+    column_config=column_config
 )
 
 # --- Funções auxiliares para detalhamento ---

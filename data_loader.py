@@ -373,9 +373,15 @@ def process_o2c_data(df: pd.DataFrame) -> pd.DataFrame:
             ''
         )
     
-    # Extract model from NUM_SERIE column
-    if 'NUM_SERIE' in df.columns:
+    # Extract model from NUM_SERIAL column (checking multiple possible column names)
+    if 'NUM_SERIAL' in df.columns:
+        df['MODELO'] = extrair_modelo_vectorized(df['NUM_SERIAL'])
+    elif 'NUM_SERIE' in df.columns:
         df['MODELO'] = extrair_modelo_vectorized(df['NUM_SERIE'])
+    elif 'SÉRIE' in df.columns:
+        df['MODELO'] = extrair_modelo_vectorized(df['SÉRIE'])
+    elif 'SERIE' in df.columns:
+        df['MODELO'] = extrair_modelo_vectorized(df['SERIE'])
     else:
         df['MODELO'] = ''
     
