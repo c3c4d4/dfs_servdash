@@ -387,7 +387,7 @@ def choropleth_map_brazil(df: pd.DataFrame, estado_counts: pd.DataFrame) -> Any:
             customdata=estado_counts[['Percentual']].values
         )
         
-        # Add text annotations with percentages on each state
+        # Add percentage labels using scatter_geo overlay
         # Get centroids for Brazilian states (approximate coordinates)
         state_centroids = {
             'AC': (-70.55, -9.0238), 'AL': (-36.782, -9.5713), 'AP': (-51.9777, 1.4558),
@@ -401,21 +401,45 @@ def choropleth_map_brazil(df: pd.DataFrame, estado_counts: pd.DataFrame) -> Any:
             'SE': (-37.3045, -10.5741), 'SP': (-48.6753, -23.9618), 'TO': (-48.2982, -10.6632)
         }
         
-        # Add text annotations for each state with percentage
+        # Create data for percentage labels
+        label_data = []
         for idx, row in estado_counts.iterrows():
             uf = row['UF']
             if uf in state_centroids and row['Percentual'] >= 1.0:  # Only show % for states with >= 1%
                 lon, lat = state_centroids[uf]
-                fig.add_annotation(
-                    x=lon,
-                    y=lat,
-                    text=f"{row['Percentual']:.1f}%",
-                    showarrow=False,
-                    font=dict(color="black", size=10, family="Arial Black"),
-                    bgcolor="rgba(255,255,255,0.8)",
-                    bordercolor="black",
-                    borderwidth=1
-                )
+                label_data.append({
+                    'UF': uf,
+                    'lon': lon,
+                    'lat': lat,
+                    'text': f"{row['Percentual']:.1f}%"
+                })
+        
+        # Add percentage labels as scatter trace
+        if label_data:
+            import pandas as pd
+            label_df = pd.DataFrame(label_data)
+            
+            # Create a separate scatter_geo figure for labels
+            fig_labels = px.scatter_geo(
+                label_df,
+                lat='lat',
+                lon='lon',
+                text='text',
+                fitbounds="locations"
+            )
+            
+            # Update the labels trace to show only text
+            fig_labels.update_traces(
+                mode='text',
+                textfont=dict(size=12, color='white', family="Arial Black"),
+                marker=dict(size=0),  # Hide markers
+                showlegend=False,
+                hoverinfo='skip'
+            )
+            
+            # Add the text traces to the main figure
+            for trace in fig_labels.data:
+                fig.add_trace(trace)
         
         fig.update_geos(
             showcountries=False,
