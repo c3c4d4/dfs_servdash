@@ -123,7 +123,7 @@ if analysis_type == "Predição de Falhas":
                 # Risk distribution
                                                 
                 # High-risk pumps table
-                high_risk = predictions_df[predictions_df['RISK_CATEGORY'].isin(['Alto', 'Crítico'])].head(20)
+                high_risk = predictions_df[predictions_df['RISK_CATEGORY'].isin(['Alto', 'Crítico'])]
                 
                 if len(high_risk) > 0:
                     st.dataframe(
