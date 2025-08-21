@@ -255,17 +255,34 @@ col12.metric('Soma Valor Total (R$)', f"R$ {soma_valor_total:,.2f}".replace(',',
 col13.metric('Soma Valor Peça (R$)', f"R$ {soma_valor_peca:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
 
 # Terceira linha de KPIs - Distribuição por Modelo
-model_metrics = vz.create_model_kpi_metrics(filtered_filtros_unique)
-if model_metrics:
+if len(filtered_filtros_unique) > 0 and 'MODELO' in filtered_filtros_unique.columns:
     st.markdown("### 📊 Distribuição por Modelo")
+    
+    # Calculate model distribution
+    total = len(filtered_filtros_unique)
+    model_counts = filtered_filtros_unique['MODELO'].value_counts()
+    main_models = ['HELIX', 'VISTA', 'CENTURY', '3G', 'E123', '7502A']
+    
+    # Calculate percentages
+    pct_helix = (model_counts.get('HELIX', 0) / total * 100) if total > 0 else 0
+    pct_vista = (model_counts.get('VISTA', 0) / total * 100) if total > 0 else 0
+    pct_century = (model_counts.get('CENTURY', 0) / total * 100) if total > 0 else 0
+    pct_3g = (model_counts.get('3G', 0) / total * 100) if total > 0 else 0
+    pct_e123 = (model_counts.get('E123', 0) / total * 100) if total > 0 else 0
+    pct_7502a = (model_counts.get('7502A', 0) / total * 100) if total > 0 else 0
+    
+    # Others percentage
+    others_count = model_counts[~model_counts.index.isin(main_models)].sum()
+    pct_others = (others_count / total * 100) if total > 0 else 0
+    
     col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
-    col1.metric('% HELIX', f"{model_metrics.get('pct_helix', 0):.1f}%")
-    col2.metric('% VISTA', f"{model_metrics.get('pct_vista', 0):.1f}%")
-    col3.metric('% CENTURY', f"{model_metrics.get('pct_century', 0):.1f}%")
-    col4.metric('% 3G', f"{model_metrics.get('pct_3g', 0):.1f}%")
-    col5.metric('% E123', f"{model_metrics.get('pct_e123', 0):.1f}%")
-    col6.metric('% 7502A', f"{model_metrics.get('pct_7502a', 0):.1f}%")
-    col7.metric('% Outros', f"{model_metrics.get('pct_others', 0):.1f}%")
+    col1.metric('% HELIX', f"{pct_helix:.1f}%")
+    col2.metric('% VISTA', f"{pct_vista:.1f}%")
+    col3.metric('% CENTURY', f"{pct_century:.1f}%")
+    col4.metric('% 3G', f"{pct_3g:.1f}%")
+    col5.metric('% E123', f"{pct_e123:.1f}%")
+    col6.metric('% 7502A', f"{pct_7502a:.1f}%")
+    col7.metric('% Outros', f"{pct_others:.1f}%")
 
 # Terceira linha de KPIs - Garantia Eletrônica e Distribuição por Faixas
 col14, col15, col16, col17, col18, col19, col20 = st.columns(7)
