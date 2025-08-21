@@ -121,36 +121,25 @@ if analysis_type == "Predição de Falhas":
                 st.subheader("🚨 Bombas de Alto Risco")
                 
                 # Risk distribution
-                col1, col2 = st.columns([1, 2])
+                                                
+                # High-risk pumps table
+                high_risk = predictions_df[predictions_df['RISK_CATEGORY'].isin(['Alto', 'Crítico'])].head(20)
                 
-                with col1:
-                    risk_counts = predictions_df['RISK_CATEGORY'].value_counts()
-                    fig_pie = px.pie(
-                        values=risk_counts.values,
-                        names=risk_counts.index,
-                        title="Distribuição de Risco"
+                if len(high_risk) > 0:
+                    st.dataframe(
+                        high_risk[['NUM_SERIAL', 'UF', 'CIDADE', 'RISK_SCORE', 'RISK_CATEGORY']],
+                        column_config={
+                            "NUM_SERIAL": "Número Serial",
+                            "UF": "Estado", 
+                            "CIDADE": "Cidade",
+                            "RISK_SCORE": st.column_config.NumberColumn("Score de Risco", format="%.2f"),
+                            "RISK_CATEGORY": "Categoria de Risco"
+                        },
+                        use_container_width=True,
+                        hide_index=True
                     )
-                    st.plotly_chart(fig_pie, use_container_width=True)
-                
-                with col2:
-                    # High-risk pumps table
-                    high_risk = predictions_df[predictions_df['RISK_CATEGORY'].isin(['Alto', 'Crítico'])].head(20)
-                    
-                    if len(high_risk) > 0:
-                        st.dataframe(
-                            high_risk[['NUM_SERIAL', 'UF', 'CIDADE', 'RISK_SCORE', 'RISK_CATEGORY']],
-                            column_config={
-                                "NUM_SERIAL": "Número Serial",
-                                "UF": "Estado", 
-                                "CIDADE": "Cidade",
-                                "RISK_SCORE": st.column_config.NumberColumn("Score de Risco", format="%.2f"),
-                                "RISK_CATEGORY": "Categoria de Risco"
-                            },
-                            use_container_width=True,
-                            hide_index=True
-                        )
-                    else:
-                        st.info("✅ Nenhuma bomba identificada como alto risco!")
+                else:
+                    st.info("✅ Nenhuma bomba identificada como alto risco!")
         else:
             st.error(f"Erro no modelo: {model_results['error']}")
     else:
