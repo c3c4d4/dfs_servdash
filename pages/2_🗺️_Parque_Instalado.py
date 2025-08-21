@@ -306,18 +306,47 @@ col11.metric('Média Valor Peça (R$)', f"R$ {media_valor_peca:,.2f}".replace(',
 col12.metric('Soma Valor Total (R$)', f"R$ {soma_valor_total:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
 col13.metric('Soma Valor Peça (R$)', f"R$ {soma_valor_peca:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
 
-# Terceira linha de KPIs - Garantia Eletrônica
-col14, col15, col16, col17 = st.columns(4)
+# Terceira linha de KPIs - Garantia Eletrônica e Distribuição por Faixas
+col14, col15, col16, col17, col18, col19, col20 = st.columns(7)
+
+# Garantia Eletrônica
 media_garan_eletr = filtered_filtros_unique['GARANTIA_ELETRONICA'].mean() if len(filtered_filtros_unique) > 0 else 0
 qtd_dentro_eletr = (filtered_filtros_unique['STATUS_GARAN_ELETRICA'] == 'DENTRO').sum()
 qtd_fora_eletr = (filtered_filtros_unique['STATUS_GARAN_ELETRICA'] == 'FORA').sum()
 total_eletr = qtd_dentro_eletr + qtd_fora_eletr
 pct_dentro_eletr = 100 * qtd_dentro_eletr / total_eletr if total_eletr else 0
 pct_fora_eletr = 100 * qtd_fora_eletr / total_eletr if total_eletr else 0
-fim_garan_eletrica_min = filtered_filtros_unique['FIM_GARAN_ELETRICA'].min() if len(filtered_filtros_unique) > 0 else ''
-fim_garan_eletrica_max = filtered_filtros_unique['FIM_GARAN_ELETRICA'].max() if len(filtered_filtros_unique) > 0 else ''
-col14.metric('% Dentro Garantia Eletrônica', f"{pct_dentro_eletr:.1f}%")
-col15.metric('% Fora Garantia Eletrônica', f"{pct_fora_eletr:.1f}%")
+
+# Distribuição por faixas de garantia (em dias)
+if 'GARANTIA' in filtered_filtros_unique.columns and len(filtered_filtros_unique) > 0:
+    # Converter GARANTIA para numérico
+    garantia_numerica = pd.to_numeric(filtered_filtros_unique['GARANTIA'], errors='coerce')
+    total_valido = garantia_numerica.notna().sum()
+    
+    # Contar por faixas
+    qtd_6m = (garantia_numerica == 183).sum()   # 6 meses
+    qtd_12m = (garantia_numerica == 365).sum()  # 12 meses  
+    qtd_18m = (garantia_numerica == 548).sum()  # 18 meses
+    qtd_24m = (garantia_numerica == 730).sum()  # 24 meses
+    qtd_36m = (garantia_numerica == 1095).sum() # 36 meses
+    
+    # Calcular percentuais
+    pct_6m = 100 * qtd_6m / total_valido if total_valido else 0
+    pct_12m = 100 * qtd_12m / total_valido if total_valido else 0
+    pct_18m = 100 * qtd_18m / total_valido if total_valido else 0
+    pct_24m = 100 * qtd_24m / total_valido if total_valido else 0
+    pct_36m = 100 * qtd_36m / total_valido if total_valido else 0
+else:
+    pct_6m = pct_12m = pct_18m = pct_24m = pct_36m = 0
+
+# Exibir métricas
+col14.metric('% Dentro Gar. Eletrônica', f"{pct_dentro_eletr:.1f}%")
+col15.metric('% Fora Gar. Eletrônica', f"{pct_fora_eletr:.1f}%")
+col16.metric('% Garantia 6m', f"{pct_6m:.1f}%")
+col17.metric('% Garantia 12m', f"{pct_12m:.1f}%")
+col18.metric('% Garantia 18m', f"{pct_18m:.1f}%")
+col19.metric('% Garantia 24m', f"{pct_24m:.1f}%")
+col20.metric('% Garantia 36m', f"{pct_36m:.1f}%")
 
 # --- Mapa ---
 st.header('📊 Distribuição Geográfica')
