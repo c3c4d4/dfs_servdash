@@ -128,13 +128,48 @@ def formatar_data_excel_vectorized(val_series: pd.Series) -> pd.Series:
     
     return val_series.apply(format_single)
 
+@st.cache_data(ttl=1800, show_spinner=False)
+def extrair_modelo_vectorized(serie_series: pd.Series) -> pd.Series:
+    """Extract model from series column based on prefix before '-'."""
+    def extract_model(serie):
+        if pd.isna(serie) or not isinstance(serie, str):
+            return ''
+        
+        # Model mapping based on prefix before '-'
+        model_mapping = {
+            'W7GVIS': 'VISTA',
+            'W7GCEN': 'CENTURY',
+            'W7HXH': 'HELIX',
+            'W7HX1': 'HELIX',
+            'W7E123': 'E123',
+            '3G3384P': '3G',
+            'W9000001': 'HELIX',
+            'W7HX2': 'HELIX',
+            '3G2203P': '3G',
+            'W7HX6': 'HELIX',
+            '7502A': '7502A',
+            '3G2204P': '3G',
+            'N3G2201PO': '3G',
+            '3GV3490P': '3G'
+        }
+        
+        # Extract prefix before '-' or use the whole string if no '-'
+        if '-' in serie:
+            prefix = serie.split('-')[0].strip().upper()
+        else:
+            prefix = serie.strip().upper()
+            
+        return model_mapping.get(prefix, 'OUTROS')
+    
+    return serie_series.apply(extract_model)
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def precompute_filter_options(df: pd.DataFrame) -> dict:
     """Precompute filter options for better performance."""
     options = {}
     
     # Precompute unique values for common filter columns
-    filter_columns = ['ESPECIALISTA', 'PROPRIETÁRIO', 'MANTENEDOR', 'RTM', 'GARANTIA', 'TIPO', 'SERVIÇO']
+    filter_columns = ['ESPECIALISTA', 'PROPRIETÁRIO', 'MANTENEDOR', 'RTM', 'GARANTIA', 'TIPO', 'SERVIÇO', 'MODELO']
     
     for col in filter_columns:
         if col in df.columns:

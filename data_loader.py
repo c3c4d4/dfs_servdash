@@ -352,6 +352,8 @@ def process_chamados_data(df: pd.DataFrame) -> pd.DataFrame:
 @st.cache_data(ttl=1800, show_spinner=False)
 def process_o2c_data(df: pd.DataFrame) -> pd.DataFrame:
     """Process and enrich O2C data with optimizations."""
+    from utils import extrair_modelo_vectorized
+    
     df = df.copy()
     
     # Optimize datetime operations
@@ -370,6 +372,12 @@ def process_o2c_data(df: pd.DataFrame) -> pd.DataFrame:
             np.where(df['FIM_GARANTIA'] >= hoje, 'DENTRO', 'FORA'),
             ''
         )
+    
+    # Extract model from NUM_SERIE column
+    if 'NUM_SERIE' in df.columns:
+        df['MODELO'] = extrair_modelo_vectorized(df['NUM_SERIE'])
+    else:
+        df['MODELO'] = ''
     
     return df
 

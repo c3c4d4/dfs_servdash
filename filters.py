@@ -18,7 +18,7 @@ def prepare_filter_options(df: pd.DataFrame, todas_tags: List[str]) -> Dict[str,
     
     # Filtros padrão usando opções pré-computadas
     filtros = {}
-    for campo in ['ESPECIALISTA', 'PROPRIETÁRIO', 'MANTENEDOR', 'RTM', 'GARANTIA', 'TIPO', 'SERVIÇO']:
+    for campo in ['ESPECIALISTA', 'PROPRIETÁRIO', 'MANTENEDOR', 'RTM', 'GARANTIA', 'TIPO', 'SERVIÇO', 'MODELO']:
         if campo in filter_options:
             filtros[campo] = filter_options[campo]
     

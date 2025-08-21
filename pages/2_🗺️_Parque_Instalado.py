@@ -348,7 +348,7 @@ st.header('📋 Detalhamento das Bombas')
 
 # Prepare table data
 colunas_tabela = [
-    'NUM_SERIAL', 'UF', 'CIDADE', 'CLIENTE', 'RTM', 'STATUS_GARANTIA', 'FIM_GARANTIA', 
+    'NUM_SERIAL', 'MODELO', 'UF', 'CIDADE', 'CLIENTE', 'RTM', 'STATUS_GARANTIA', 'FIM_GARANTIA', 
     'ANO_NF', 'DT_NUM_NF', 'GARANTIA', 'GARANTIA_ELETRONICA', 'FIM_GARAN_ELETRICA', 'STATUS_GARAN_ELETRICA'
 ]
 
@@ -375,6 +375,7 @@ st.dataframe(
     hide_index=True,
     column_config={
         "NUM_SERIAL": st.column_config.TextColumn("Número Serial", width="medium"),
+        "MODELO": st.column_config.TextColumn("Modelo", width="small"),
         "UF": st.column_config.TextColumn("UF", width="small"),
         "CIDADE": st.column_config.TextColumn("Cidade", width="medium"),
         "CLIENTE": st.column_config.TextColumn("Cliente", width="medium"),

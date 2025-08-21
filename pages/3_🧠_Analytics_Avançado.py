@@ -17,7 +17,7 @@ import advanced_analytics as aa
 import business_logic as bl
 
 st.set_page_config(
-    page_title="Analytics Avançado - DFS ServiceWatch", 
+    page_title="Analytics Avançado - EM DESENVOLVIMENTO", 
     layout="wide",
     page_icon="🧠"
 )
@@ -53,7 +53,7 @@ if len(chamados_df) == 0:
     st.stop()
 
 # Page header
-st.title("🧠 Analytics Avançado")
+st.title("🧠 Analytics Avançado - EM DESENVOLVIMENTO")
 
 # Sidebar for analytics options
 st.sidebar.header("🔬 Opções de Análise")

@@ -6,7 +6,7 @@ import base64
 import numpy as np
 
 from data_loader import carregar_dados_merged, carregar_o2c, process_chamados_data, process_o2c_data
-from utils import extrair_tags_vectorized, extrair_codigo_bomba_vectorized, calcular_aging_vectorized, calcular_garantia_vectorized, formatar_data_excel_vectorized
+from utils import extrair_tags_vectorized, extrair_codigo_bomba_vectorized, calcular_aging_vectorized, calcular_garantia_vectorized, formatar_data_excel_vectorized, extrair_modelo_vectorized
 from auth import check_password
 from filters import sidebar_filters, aplicar_filtros
 import visualization as vz
@@ -79,6 +79,12 @@ def process_data_for_display(df: pd.DataFrame, o2c_df: pd.DataFrame):
     else:
         df['COD_BOMBA'] = ''
     
+    # Extract model from SÉRIE column
+    if 'SÉRIE' in df.columns:
+        df['MODELO'] = extrair_modelo_vectorized(df['SÉRIE'])
+    else:
+        df['MODELO'] = ''
+    
     return df
 
 def exibir_logo_sidebar(path_logo, largura=200):
@@ -120,7 +126,7 @@ def main():
     
     # Define display columns
     columns = [
-        'TAGS', 'CHAMADO', 'CHASSI', 'SÉRIE', 'ORDEM', 'COD_BOMBA', 'RTM', 'ESPECIALISTA', 'PROPRIETÁRIO', 'MANTENEDOR',
+        'TAGS', 'CHAMADO', 'CHASSI', 'SÉRIE', 'MODELO', 'ORDEM', 'COD_BOMBA', 'RTM', 'ESPECIALISTA', 'PROPRIETÁRIO', 'MANTENEDOR',
         'TIPO', 'SERVIÇO', 'PROBLEMA', 'RESOLUÇÃO', 'CLIENTE', 'INÍCIO', 'FIM', 'SUMÁRIO', 'AGING', 'FIM_GARANTIA', 'GARANTIA', 'STATUS'
     ]
     
@@ -180,6 +186,7 @@ def main():
             "CHAMADO": st.column_config.TextColumn("Chamado", width="small"),
             "CHASSI": st.column_config.TextColumn("Chassi", width="medium"),
             "SÉRIE": st.column_config.TextColumn("Série", width="small"),
+            "MODELO": st.column_config.TextColumn("Modelo", width="small"),
             "ORDEM": st.column_config.TextColumn("Ordem", width="small"),
             "COD_BOMBA": st.column_config.TextColumn("Cód. Bomba", width="small"),
             "RTM": st.column_config.TextColumn("RTM", width="small"),
