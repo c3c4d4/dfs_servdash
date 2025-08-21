@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(python:*)",
-      "Bash(py:*)"
+      "Bash(py:*)",
+      "Bash(pip install:*)"
     ],
     "defaultMode": "acceptEdits"
   }

@@ -387,19 +387,66 @@ def choropleth_map_brazil(df: pd.DataFrame, estado_counts: pd.DataFrame) -> Any:
             customdata=estado_counts[['Percentual']].values
         )
         
-        # Add percentage labels using scatter_geo overlay
-        # Get centroids for Brazilian states (approximate coordinates)
-        state_centroids = {
-            'AC': (-70.55, -9.0238), 'AL': (-36.782, -9.5713), 'AP': (-51.9777, 1.4558),
-            'AM': (-64.0685, -3.4168), 'BA': (-41.5756, -12.5797), 'CE': (-39.5182, -5.4984),
-            'DF': (-47.9292, -15.7801), 'ES': (-40.3377, -19.1834), 'GO': (-49.2532, -16.3544),
-            'MA': (-45.0183, -4.9609), 'MG': (-45.2471, -18.5122), 'MS': (-54.7972, -20.7722),
-            'MT': (-56.0926, -12.6819), 'PA': (-52.9336, -6.7719), 'PB': (-36.72, -7.24),
-            'PE': (-37.9717, -8.8137), 'PI': (-42.7098, -8.5014), 'PR': (-51.6059, -24.89),
-            'RJ': (-43.7729, -22.4756), 'RN': (-36.9541, -5.4026), 'RO': (-63.5806, -11.5057),
-            'RR': (-61.4194, 2.7376), 'RS': (-53.5233, -30.8283), 'SC': (-50.1978, -27.2423),
-            'SE': (-37.3045, -10.5741), 'SP': (-48.6753, -23.9618), 'TO': (-48.2982, -10.6632)
-        }
+        # Calculate actual centroids using polylabel from GeoJSON polygons
+        try:
+            from polylabel import polylabel
+            state_centroids = {}
+            
+            # Calculate centroids from actual polygon geometries
+            for feature in brazil_states.get('features', []):
+                if 'properties' in feature and 'geometry' in feature:
+                    props = feature['properties']
+                    geometry = feature['geometry']
+                    
+                    # Try different possible property names for state
+                    state_id = None
+                    for prop_name in ['UF', 'uf', 'UF_05', 'SIGLA', 'sigla', 'ESTADO', 'estado', 'name', 'NAME']:
+                        if prop_name in props:
+                            state_id = str(props[prop_name])
+                            break
+                    
+                    if state_id and geometry['type'] in ['Polygon', 'MultiPolygon']:
+                        try:
+                            # Handle both Polygon and MultiPolygon
+                            if geometry['type'] == 'Polygon':
+                                # For Polygon, coordinates is [exterior_ring, hole1, hole2, ...]
+                                polygon_coords = geometry['coordinates'][0]  # Just the exterior ring
+                            else:  # MultiPolygon
+                                # For MultiPolygon, take the largest polygon
+                                largest_polygon = max(geometry['coordinates'], 
+                                                    key=lambda poly: len(poly[0]))
+                                polygon_coords = largest_polygon[0]  # Exterior ring of largest polygon
+                            
+                            # Calculate polylabel (optimal label position)
+                            centroid = polylabel([polygon_coords])
+                            state_centroids[state_id] = (centroid[0], centroid[1])  # (lon, lat)
+                            
+                        except Exception as e:
+                            # Fallback to simple geometric center if polylabel fails
+                            if geometry['type'] == 'Polygon':
+                                coords = geometry['coordinates'][0]
+                            else:
+                                coords = geometry['coordinates'][0][0]
+                            
+                            lons = [coord[0] for coord in coords]
+                            lats = [coord[1] for coord in coords]
+                            centroid_lon = sum(lons) / len(lons)
+                            centroid_lat = sum(lats) / len(lats)
+                            state_centroids[state_id] = (centroid_lon, centroid_lat)
+            
+        except ImportError:
+            # Fallback to hardcoded centroids if polylabel is not available
+            state_centroids = {
+                'AC': (-70.55, -9.0238), 'AL': (-36.782, -9.5713), 'AP': (-51.9777, 1.4558),
+                'AM': (-64.0685, -3.4168), 'BA': (-41.5756, -12.5797), 'CE': (-39.5182, -5.4984),
+                'DF': (-47.9292, -15.7801), 'ES': (-40.3377, -19.1834), 'GO': (-49.2532, -16.3544),
+                'MA': (-45.0183, -4.9609), 'MG': (-45.2471, -18.5122), 'MS': (-54.7972, -20.7722),
+                'MT': (-56.0926, -12.6819), 'PA': (-52.9336, -6.7719), 'PB': (-36.72, -7.24),
+                'PE': (-37.9717, -8.8137), 'PI': (-42.7098, -8.5014), 'PR': (-51.6059, -24.89),
+                'RJ': (-43.7729, -22.4756), 'RN': (-36.9541, -5.4026), 'RO': (-63.5806, -11.5057),
+                'RR': (-61.4194, 2.7376), 'RS': (-53.5233, -30.8283), 'SC': (-50.1978, -27.2423),
+                'SE': (-37.3045, -10.5741), 'SP': (-48.6753, -23.9618), 'TO': (-48.2982, -10.6632)
+            }
         
         # Create data for percentage labels
         label_data = []
