@@ -54,25 +54,23 @@ if len(chamados_df) == 0:
 
 # Page header
 st.title("🧠 Analytics Avançado")
-st.markdown("**AI-Powered Insights & Predictive Analytics**")
 
 # Sidebar for analytics options
 st.sidebar.header("🔬 Opções de Análise")
 analysis_type = st.sidebar.selectbox(
     "Escolha o tipo de análise:",
     [
-        "🔮 Predição de Falhas",
-        "📈 Análise Temporal",
-        "🔗 Análise de Correlação", 
-        "🔧 Otimização de Manutenção",
-        "🚀 Previsão de Performance",
-        "📊 Dashboard Personalizado"
+        "Predição de Falhas",
+        "Análise Temporal",
+        "Análise de Correlação", 
+        "Otimização de Manutenção",
+        "Previsão de Performance",
     ]
 )
 
 # Analysis sections
-if analysis_type == "🔮 Predição de Falhas":
-    st.header("🔮 Predição de Falhas")
+if analysis_type == "Predição de Falhas":
+    st.header("Predição de Falhas")
     st.markdown("**Modelo de Machine Learning para prever riscos de falha em bombas**")
     
     with st.expander("ℹ️ Como funciona"):
@@ -94,7 +92,7 @@ if analysis_type == "🔮 Predição de Falhas":
         
         if 'error' not in model_results:
             # Model performance metrics
-            st.subheader("📊 Performance do Modelo")
+            st.subheader("Performance do Modelo")
             col1, col2, col3, col4 = st.columns(4)
             
             col1.metric("Bombas Analisadas", f"{len(features_df):,}")
@@ -158,8 +156,8 @@ if analysis_type == "🔮 Predição de Falhas":
     else:
         st.warning("⚠️ Dados insuficientes para análise preditiva.")
 
-elif analysis_type == "📈 Análise Temporal":
-    st.header("📈 Análise Temporal")
+elif analysis_type == "Análise Temporal":
+    st.header("Análise Temporal")
     st.markdown("**Análise avançada de tendências e padrões temporais**")
     
     # Date range selector
@@ -188,11 +186,11 @@ elif analysis_type == "📈 Análise Temporal":
             
             # Display charts
             if 'volume' in charts:
-                st.subheader("📊 Evolução do Volume")
+                st.subheader("Evolução do Volume")
                 st.plotly_chart(charts['volume'], use_container_width=True)
             
             if 'dashboard' in charts:
-                st.subheader("📈 Dashboard Multi-Métricas")
+                st.subheader("Dashboard Multi-Métricas")
                 st.plotly_chart(charts['dashboard'], use_container_width=True)
             
             if 'seasonal' in charts:
@@ -200,7 +198,7 @@ elif analysis_type == "📈 Análise Temporal":
                 st.plotly_chart(charts['seasonal'], use_container_width=True)
             
             # Trend Analysis
-            st.subheader("📈 Análise de Tendências")
+            st.subheader("Análise de Tendências")
             with st.spinner("Analisando tendências..."):
                 trends = aa.time_series_analyzer.create_trend_analysis(ts_data)
             
@@ -244,7 +242,7 @@ elif analysis_type == "📈 Análise Temporal":
                 col1, col2, col3 = st.columns(3)
                 col1.metric("🏔️ Pico Sazonal", seasonality['peak_month'])
                 col2.metric("🏝️ Vale Sazonal", seasonality['trough_month']) 
-                col3.metric("📊 Força Sazonal", f"{seasonality['seasonality_strength']:.2f}")
+                col3.metric("Força Sazonal", f"{seasonality['seasonality_strength']:.2f}")
                 
                 # Monthly averages chart
                 month_data = seasonality['monthly_averages']
@@ -273,7 +271,7 @@ elif analysis_type == "📈 Análise Temporal":
                 st.info("ℹ️ Não foram detectados padrões sazonais significativos para esta métrica.")
             
             # Forecasting
-            st.subheader("🔮 Previsão")
+            st.subheader("Previsão")
             forecast_periods = st.slider("Períodos para prever (meses):", 3, 12, 6)
             forecast_metric = st.selectbox(
                 "Métrica para previsão:",
@@ -322,7 +320,7 @@ elif analysis_type == "📈 Análise Temporal":
                 st.plotly_chart(fig_forecast, use_container_width=True)
                 
                 # Show forecast values
-                st.subheader("📊 Valores Previstos")
+                st.subheader("Valores Previstos")
                 forecast_display = forecast_future[['DATA', 'VALOR_PREVISTO']].copy()
                 forecast_display['DATA'] = forecast_display['DATA'].dt.strftime('%Y-%m')
                 forecast_display.columns = ['Período', 'Valor Previsto']
@@ -345,8 +343,8 @@ elif analysis_type == "📈 Análise Temporal":
     else:
         st.warning("⚠️ Nenhum dado encontrado no período selecionado.")
 
-elif analysis_type == "🔗 Análise de Correlação":
-    st.header("🔗 Análise de Correlação")
+elif analysis_type == "Análise de Correlação":
+    st.header("Análise de Correlação")
     st.markdown("**Descubra relacionamentos e dependências entre variáveis**")
     
     # Prepare numerical dataset
@@ -392,7 +390,7 @@ elif analysis_type == "🔗 Análise de Correlação":
             )
             
             # Scatter plots for strongest correlations
-            st.subheader("📈 Gráficos de Dispersão")
+            st.subheader("Gráficos de Dispersão")
             
             # Select top 3 correlations for visualization
             top_correlations = strong_corr.head(3)
@@ -470,7 +468,7 @@ elif analysis_type == "🔗 Análise de Correlação":
             st.info(f"Nenhuma correlação forte encontrada acima de {threshold}")
             
             # Show summary statistics instead
-            st.subheader("📊 Estatísticas Descritivas")
+            st.subheader("Estatísticas Descritivas")
             numeric_cols = analysis_df.select_dtypes(include=[np.number]).columns
             if len(numeric_cols) > 0:
                 desc_stats = analysis_df[numeric_cols].describe().round(2)
@@ -478,8 +476,8 @@ elif analysis_type == "🔗 Análise de Correlação":
     else:
         st.warning("⚠️ Dados insuficientes para análise de correlação.")
 
-elif analysis_type == "🔧 Otimização de Manutenção":
-    st.header("🔧 Otimização de Manutenção")
+elif analysis_type == "Otimização de Manutenção":
+    st.header("Otimização de Manutenção")
     st.markdown("**Análise inteligente para otimizar cronogramas de manutenção**")
     
     with st.spinner("Analisando padrões de manutenção..."):
@@ -487,7 +485,7 @@ elif analysis_type == "🔧 Otimização de Manutenção":
     
     if maintenance_analysis:
         # Summary metrics
-        st.subheader("📊 Resumo da Manutenção")
+        st.subheader("Resumo da Manutenção")
         col1, col2, col3, col4 = st.columns(4)
         
         col1.metric("Total de Serviços", f"{maintenance_analysis['total_services']:,}")
@@ -632,8 +630,8 @@ elif analysis_type == "🔧 Otimização de Manutenção":
     else:
         st.warning("⚠️ Dados insuficientes para análise de manutenção.")
 
-elif analysis_type == "🚀 Previsão de Performance":
-    st.header("🚀 Previsão de Performance")
+elif analysis_type == "Previsão de Performance":
+    st.header("Previsão de Performance")
     st.markdown("**Previsões avançadas de KPIs e métricas de performance usando Machine Learning**")
     
     with st.expander("ℹ️ Como funciona"):
@@ -668,7 +666,7 @@ elif analysis_type == "🚀 Previsão de Performance":
             insights = aa.performance_forecaster.performance_insights(weekly_data, forecasts)
             
             # Current performance summary
-            st.subheader("📊 Performance Atual")
+            st.subheader("Performance Atual")
             recent_data = weekly_data.tail(4)  # Last 4 weeks
             
             perf_cols = st.columns(4)
@@ -708,7 +706,7 @@ elif analysis_type == "🚀 Previsão de Performance":
                     st.plotly_chart(chart, use_container_width=True)
                 
                 # Forecast insights
-                st.subheader("🔮 Insights das Previsões")
+                st.subheader("Insights das Previsões")
                 
                 if 'forecasts' in insights:
                     insight_cols = st.columns(2)
@@ -755,7 +753,7 @@ elif analysis_type == "🚀 Previsão de Performance":
                 
                 csv_forecasts = export_forecasts.to_csv(index=False)
                 st.download_button(
-                    label="📊 Baixar Previsões (CSV)",
+                    label="Baixar Previsões (CSV)",
                     data=csv_forecasts,
                     file_name=f"previsoes_performance_{datetime.now().strftime('%Y%m%d')}.csv",
                     mime="text/csv"
@@ -767,8 +765,8 @@ elif analysis_type == "🚀 Previsão de Performance":
     else:
         st.warning("⚠️ Erro ao preparar dados para previsão de performance.")
 
-elif analysis_type == "📊 Dashboard Personalizado":
-    st.header("📊 Dashboard Personalizado")
+elif analysis_type == "Dashboard Personalizado":
+    st.header("Dashboard Personalizado")
     st.markdown("**Configure seu próprio dashboard com métricas customizadas**")
     
     # Dashboard configuration
@@ -898,8 +896,3 @@ elif analysis_type == "📊 Dashboard Personalizado":
             col_idx += 1
     else:
         st.info("Selecione pelo menos uma métrica para exibir no dashboard.")
-
-# Footer
-st.markdown("---")
-st.markdown("**🧠 Analytics Avançado** - Powered by AI & Machine Learning")
-st.markdown("*Insights inteligentes para otimizar suas operações de serviço*")
