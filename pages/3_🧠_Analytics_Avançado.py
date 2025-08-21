@@ -61,10 +61,10 @@ analysis_type = st.sidebar.selectbox(
     "Escolha o tipo de análise:",
     [
         "Predição de Falhas",
-        "Análise Temporal",
-        "Análise de Correlação", 
-        "Otimização de Manutenção",
-        "Previsão de Performance",
+        # "Análise Temporal",
+        # "Análise de Correlação", 
+        # "Otimização de Manutenção",
+        # "Previsão de Performance",
     ]
 )
 
