@@ -11,6 +11,7 @@ import visualization as vz
 import numpy as np
 from datetime import datetime
 from streamlit_dynamic_filters import DynamicFilters  # NEW IMPORT
+import business_logic as bl
 
 st.set_page_config(page_title="Parque Instalado - Chamados de Serviços", layout="wide")
 
@@ -125,15 +126,8 @@ if 'DURAÇÃO_GARANTIA' in o2c.columns:
 elif 'DURACAO_GARANTIA' in o2c.columns:
     available_filter_columns.append('DURACAO_GARANTIA')
 elif 'GARANTIA' in o2c.columns:
-    # If GARANTIA column exists, we'll create DURAÇÃO_GARANTIA categories
-    o2c['DURAÇÃO_GARANTIA'] = o2c['GARANTIA'].apply(lambda x: 
-        '6 meses (183 dias)' if x == 183 else
-        '12 meses (365 dias)' if x == 365 else
-        '18 meses (548 dias)' if x == 548 else
-        '24 meses (730 dias)' if x == 730 else
-        '36 meses (1095 dias)' if x == 1095 else
-        'Outros' if pd.notna(x) else 'Não informado'
-    )
+    # If GARANTIA column exists, we'll create DURAÇÃO_GARANTIA categories using business logic
+    o2c['DURAÇÃO_GARANTIA'] = bl.create_duracao_garantia_column(o2c['GARANTIA'])
     available_filter_columns.append('DURAÇÃO_GARANTIA')
 
 with st.sidebar:
@@ -142,16 +136,17 @@ with st.sidebar:
     dynamic_filters.display_filters(location='sidebar')
     considerar_stb = st.checkbox("Remover [STB]", value=False)
 
-# Use the checkbox value to filter chamados for calculations
+# Use precomputed values and apply STB filter if needed
 if considerar_stb:
-    chamados_considerados = chamados.copy()
+    # Include STB calls - use original counts
+    chassi_counts_validos = chassi_counts
+    # Recalculate chassi_com_chamado including STB
+    chassi_com_chamado = set(chamados[~chamados['SERVIÇO'].str.contains('PARTIDA INICIAL', na=False)]['CHASSI'])
 else:
-    chamados_considerados = chamados[~chamados['SUMÁRIO'].str.contains('\\[STB\\]', case=False, na=False)].copy()
-
-chassi_counts_validos = chamados_considerados.groupby('CHASSI').size()
-chassi_com_chamado = set(
-    chamados_considerados[~chamados_considerados['SERVIÇO'].str.contains('PARTIDA INICIAL', na=False)]['CHASSI']
-)
+    # Exclude STB calls - use precomputed valid counts
+    chamados_considerados = chamados[~chamados['SUMÁRIO'].str.contains('\\[STB\\]', case=False, na=False)]
+    chassi_counts_validos = chamados_considerados.groupby('CHASSI').size()
+    chassi_com_chamado = set(chamados_considerados[~chamados_considerados['SERVIÇO'].str.contains('PARTIDA INICIAL', na=False)]['CHASSI'])
 
 # Now filter the dataframe after all filter variables are set
 filtered_filtros_unique = dynamic_filters.filter_df().drop_duplicates(subset=['NUM_SERIAL'], keep='first')
@@ -170,44 +165,10 @@ filtered_filtros_unique['CHAMADOS_LISTA'] = filtered_filtros_unique['NUM_SERIAL'
 filtros_rtm = sidebar_filters_rtm_errors(erros_rtm)
 filtered_filtros_unique = aplicar_filtros_rtm_errors(filtered_filtros_unique, filtros_rtm, erros_rtm, chamados_por_chassi_dict)
 
-# Recalculate QTD_CHAMADOS based on filtered RTM error context
-# Get only the SS present in the filtered RTM error set
-ss_filtrados = set(erros_rtm['SS'].astype(str))
-erros_filtrados = erros_rtm.copy()
+# RTM filtering is now handled entirely in the filters module
+# No need for duplicate logic here
 
-# Apply filters - now working with lists instead of single values
-if filtros_rtm["tipo_erro_sel"]:  # If not empty list
-    erros_filtrados = erros_filtrados[erros_filtrados['TIPO_ERRO'].isin(filtros_rtm["tipo_erro_sel"])]
-if filtros_rtm["desc_erro_sel"]:  # If not empty list
-    erros_filtrados = erros_filtrados[erros_filtrados['DESC_ERRO'].isin(filtros_rtm["desc_erro_sel"])]
-if filtros_rtm["cod_erro_sel"]:  # If not empty list
-    erros_filtrados = erros_filtrados[erros_filtrados['CÓD_ERRO'].isin(filtros_rtm["cod_erro_sel"])]
-if filtros_rtm["detalhes_erro_sel"]:  # If not empty list
-    erros_filtrados = erros_filtrados[erros_filtrados['DETALHES_ERRO'].isin(filtros_rtm["detalhes_erro_sel"])]
-ss_filtrados = set(erros_filtrados['SS'].astype(str))
-
-def count_chamados_for_chassi(chassi):
-    ss_list = chamados_por_chassi_dict.get(chassi, [])
-    return sum(1 for ss in ss_list if ss in ss_filtrados)
-
-# Check if any RTM filters are applied (any non-empty list)
-if any([
-    filtros_rtm["tipo_erro_sel"],
-    filtros_rtm["desc_erro_sel"], 
-    filtros_rtm["cod_erro_sel"],
-    filtros_rtm["detalhes_erro_sel"],
-]):
-    filtered_filtros_unique['QTD_CHAMADOS'] = filtered_filtros_unique['NUM_SERIAL'].apply(count_chamados_for_chassi)
-    # Remove everything with QTD_CHAMADOS < 1
-    filtered_filtros_unique = filtered_filtros_unique[filtered_filtros_unique['QTD_CHAMADOS'] > 0]
-
-# Remove duplicates based on NUM_SERIAL to ensure accurate counts
-# filtered_filtros_unique = filtered_filtros_unique.drop_duplicates(subset=['NUM_SERIAL'], keep='first')
-
-# Remove rows where NUM_SERIAL is not exactly 6 digits
-# filtered_filtros_unique = filtered_filtros_unique[
-#     filtered_filtros_unique['NUM_SERIAL'].astype(str).str.match(r'^\d{6}$', na=False)
-# ]
+# Data is already deduplicated and validated above
 
 
 
@@ -218,90 +179,52 @@ all_bombas = o2c['NUM_SERIAL'].dropna().nunique()
 chassis_filtros = filtered_filtros_unique['NUM_SERIAL'].dropna().unique()
 total_bombas_filtro = len(chassis_filtros)
 
-# Média de chamados por bomba (excluindo [STB])
-chassis_filtros_series = pd.Series(chassis_filtros)
-qtd_chamados_filtros = chassi_counts_validos.reindex(chassis_filtros_series, fill_value=0)
-media_chamados = qtd_chamados_filtros.mean() if total_bombas_filtro else 0
+# Calculate KPIs using business logic module
+chassis_filtrados_series = pd.Series(chassis_filtros)
+qtd_chamados_por_chassi = chassi_counts_validos.reindex(chassis_filtrados_series, fill_value=0)
+media_chamados_por_bomba = qtd_chamados_por_chassi.mean() if total_bombas_filtro else 0
 
-# % com chamado de garantia (técnica + comercial): agora baseados apenas no contexto filtrado
-# Filtrar apenas chamados de garantia (técnica e comercial)
-chamados_garantia = chamados_considerados[
-    chamados_considerados['SERVIÇO'].str.contains('GARANTIA', na=False)
+# Get guarantee calls chassis
+chamados_base_para_garantia = chamados if considerar_stb else chamados_considerados
+chamados_de_garantia = chamados_base_para_garantia[
+    chamados_base_para_garantia['SERVIÇO'].str.contains('GARANTIA', na=False)
 ]
-chassis_com_garantia = set(chamados_garantia['CHASSI'].unique())
-chassis_filtros_series = pd.Series(chassis_filtros)
-com_chamado_garantia = chassis_filtros_series.isin(chassis_com_garantia)
-pct_com_chamado = 100 * com_chamado_garantia.sum() / total_bombas_filtro if total_bombas_filtro else 0
+chassis_com_chamado_garantia = set(chamados_de_garantia['CHASSI'].unique())
 
-# % sem chamado de garantia
-sem_chamado_garantia = ~com_chamado_garantia
-pct_sem_chamado = 100 * sem_chamado_garantia.sum() / total_bombas_filtro if total_bombas_filtro else 0
+# Calculate all KPI percentages using business logic
+kpis_percentuais = bl.calculate_kpi_percentages(
+    filtered_filtros_unique, 
+    partida_set, 
+    chassi_counts_validos, 
+    chassis_com_chamado_garantia
+)
 
-# % com partida inicial (DFS)
-com_partida_dfs = pd.Series(chassis_filtros).isin(partida_set)
-pct_com_partida_dfs = 100 * com_partida_dfs.sum() / total_bombas_filtro if total_bombas_filtro else 0
+# Extract individual KPIs
+pct_com_partida_dfs = kpis_percentuais['pct_com_partida_dfs']
+pct_com_partida_terceiros = kpis_percentuais['pct_com_partida_terceiros']
+pct_com_chamado = kpis_percentuais['pct_com_chamado']
+pct_sem_chamado = kpis_percentuais['pct_sem_chamado']
+pct_rtm = kpis_percentuais['pct_rtm']
+pct_em_garantia = kpis_percentuais['pct_em_garantia']
+pct_fora_garantia = kpis_percentuais['pct_fora_garantia']
 
-# Define the determine_partida_inicial function for KPI calculation
-def determine_partida_inicial_kpi(row):
-    """Determine partida inicial status based on new rules for KPI calculation."""
-    has_partida_inicial = row['NUM_SERIAL'] in partida_set
-    qtd_chamados = row['QTD_CHAMADOS']
-    if has_partida_inicial:
-        return 'SIM - DFS'
-    elif qtd_chamados > 0:
-        return 'SIM - TERCEIRO'
-    else:
-        return 'NÃO'
+# --- Cálculo de Valores RTM usando business logic ---
+ss_das_bombas_filtradas = bl.get_ss_for_chassis(chassis_filtros, chamados_por_chassi_dict)
+erros_rtm_das_bombas = erros_rtm[erros_rtm['SS'].astype(str).isin(ss_das_bombas_filtradas)]
 
-# % com partida inicial (Terceiros) - based on actual PARTIDA_INICIAL values
-filtered_filtros_temp = filtered_filtros_unique.copy()
-filtered_filtros_temp['QTD_CHAMADOS'] = filtered_filtros_temp['NUM_SERIAL'].map(chassi_counts_validos).fillna(0)
-filtered_filtros_temp['PARTIDA_INICIAL'] = filtered_filtros_temp.apply(determine_partida_inicial_kpi, axis=1)
-sim_terceiro_count = (filtered_filtros_temp['PARTIDA_INICIAL'] == 'SIM - TERCEIRO').sum()
-pct_com_partida_terceiros = 100 * sim_terceiro_count / total_bombas_filtro if total_bombas_filtro else 0
+# Calculate RTM values using business logic
+rtm_values = bl.calculate_rtm_values(erros_rtm_das_bombas)
+media_valor_total = rtm_values['media_valor_total']
+media_valor_peca = rtm_values['media_valor_peca']
+soma_valor_total = rtm_values['soma_valor_total']
+soma_valor_peca = rtm_values['soma_valor_peca']
 
-# % RTM
-rtm_count = filtered_filtros_unique[filtered_filtros_unique['RTM'] == 'SIM']['NUM_SERIAL'].nunique()
-pct_rtm = 100 * rtm_count / total_bombas_filtro if total_bombas_filtro else 0
+# --- Add calculated columns using business logic ---
+# Add QTD_CHAMADOS column
+filtered_filtros_unique['QTD_CHAMADOS'] = bl.calculate_qtd_chamados(filtered_filtros_unique, chassi_counts_validos)
 
-# % Em Garantia
-em_garantia_count = filtered_filtros_unique[filtered_filtros_unique['STATUS_GARANTIA'] == 'DENTRO']['NUM_SERIAL'].nunique()
-pct_em_garantia = 100 * em_garantia_count / total_bombas_filtro if total_bombas_filtro else 0
-
-# % Fora de Garantia
-fora_garantia_count = filtered_filtros_unique[filtered_filtros_unique['STATUS_GARANTIA'] == 'FORA']['NUM_SERIAL'].nunique()
-pct_fora_garantia = 100 * fora_garantia_count / total_bombas_filtro if total_bombas_filtro else 0
-
-# --- Cálculo de Valores RTM ---
-# Get SS numbers for filtered pumps
-ss_filtrados = set()
-for chassi in chassis_filtros:
-    if chassi in chamados_por_chassi_dict:
-        ss_filtrados.update(chamados_por_chassi_dict[chassi])
-
-# Filter RTM errors for these SS numbers
-erros_filtrados = erros_rtm[erros_rtm['SS'].astype(str).isin(ss_filtrados)]
-
-# Calculate value metrics
-if len(erros_filtrados) > 0:
-    media_valor_total = erros_filtrados['VALOR_TOTAL'].mean()
-    media_valor_peca = erros_filtrados['VALOR_PECA'].mean()
-    soma_valor_total = erros_filtrados['VALOR_TOTAL'].sum()
-    soma_valor_peca = erros_filtrados['VALOR_PECA'].sum()
-else:
-    media_valor_total = 0
-    media_valor_peca = 0
-    soma_valor_total = 0
-    soma_valor_peca = 0
-
-
-# --- Adiciona colunas de Garantia Eletrônica (após todos os filtros) ---
-filtered_filtros_unique['GARANTIA_ELETRONICA'] = 365
-filtered_filtros_unique['FIM_GARAN_ELETRICA'] = pd.to_datetime(filtered_filtros_unique['DT_NUM_NF'], errors='coerce') + timedelta(days=365)
-filtered_filtros_unique['FIM_GARAN_ELETRICA'] = filtered_filtros_unique['FIM_GARAN_ELETRICA'].dt.strftime('%d/%m/%Y')
-hoje = pd.Timestamp.now().normalize()
-fim_garan_eletrica_dt = pd.to_datetime(filtered_filtros_unique['FIM_GARAN_ELETRICA'], format='%d/%m/%Y', errors='coerce')
-filtered_filtros_unique['STATUS_GARAN_ELETRICA'] = ['DENTRO' if (pd.notnull(fim) and hoje <= fim) else 'FORA' for fim in fim_garan_eletrica_dt]
+# Add electronic warranty columns
+filtered_filtros_unique = bl.add_garantia_eletronica_columns(filtered_filtros_unique)
 
 # --- KPIs ---
 st.title('🗺️ Parque Instalado - Análise por Estado')
@@ -316,7 +239,7 @@ col5.metric('% Sem Chamado Garantia', f"{pct_sem_chamado:.1f}%")
 col6.metric('% RTM', f"{pct_rtm:.1f}%")
 col7.metric('% Em Garantia', f"{pct_em_garantia:.1f}%")
 col8.metric('% Fora de Garantia', f"{pct_fora_garantia:.1f}%")
-col9.metric('Média Chamados/Bomba', f"{media_chamados:.1f}")
+col9.metric('Média Chamados/Bomba', f"{media_chamados_por_bomba:.1f}")
 
 
 # Segunda linha de KPIs - Valores
@@ -337,27 +260,13 @@ total_eletr = qtd_dentro_eletr + qtd_fora_eletr
 pct_dentro_eletr = 100 * qtd_dentro_eletr / total_eletr if total_eletr else 0
 pct_fora_eletr = 100 * qtd_fora_eletr / total_eletr if total_eletr else 0
 
-# Distribuição por faixas de garantia (em dias)
-if 'GARANTIA' in filtered_filtros_unique.columns and len(filtered_filtros_unique) > 0:
-    # Converter GARANTIA para numérico
-    garantia_numerica = pd.to_numeric(filtered_filtros_unique['GARANTIA'], errors='coerce')
-    total_valido = garantia_numerica.notna().sum()
-    
-    # Contar por faixas
-    qtd_6m = (garantia_numerica == 183).sum()   # 6 meses
-    qtd_12m = (garantia_numerica == 365).sum()  # 12 meses  
-    qtd_18m = (garantia_numerica == 548).sum()  # 18 meses
-    qtd_24m = (garantia_numerica == 730).sum()  # 24 meses
-    qtd_36m = (garantia_numerica == 1095).sum() # 36 meses
-    
-    # Calcular percentuais
-    pct_6m = 100 * qtd_6m / total_valido if total_valido else 0
-    pct_12m = 100 * qtd_12m / total_valido if total_valido else 0
-    pct_18m = 100 * qtd_18m / total_valido if total_valido else 0
-    pct_24m = 100 * qtd_24m / total_valido if total_valido else 0
-    pct_36m = 100 * qtd_36m / total_valido if total_valido else 0
-else:
-    pct_6m = pct_12m = pct_18m = pct_24m = pct_36m = 0
+# Calculate warranty distribution using business logic
+garantia_dist = bl.calculate_garantia_distribution(filtered_filtros_unique)
+pct_6m = garantia_dist['pct_6m']
+pct_12m = garantia_dist['pct_12m']
+pct_18m = garantia_dist['pct_18m']
+pct_24m = garantia_dist['pct_24m']
+pct_36m = garantia_dist['pct_36m']
 
 # Exibir métricas
 col14.metric('% Dentro Gar. Eletrônica', f"{pct_dentro_eletr:.1f}%")
@@ -443,28 +352,17 @@ colunas_tabela = [
     'ANO_NF', 'DT_NUM_NF', 'GARANTIA', 'GARANTIA_ELETRONICA', 'FIM_GARAN_ELETRICA', 'STATUS_GARAN_ELETRICA'
 ]
 
-# Add call count column (excluindo [STB])
-filtered_filtros_unique['QTD_CHAMADOS'] = filtered_filtros_unique['NUM_SERIAL'].map(chassi_counts_validos).fillna(0)
+# QTD_CHAMADOS already calculated above using centralized function
 
 # Ensure CLIENTE column exists
 if 'CLIENTE' not in filtered_filtros_unique.columns:
     filtered_filtros_unique['CLIENTE'] = ''
 
-# Add partida inicial info with new logic
-def determine_partida_inicial(row):
-    """Determine partida inicial status based on new rules."""
-    has_partida_inicial = row['NUM_SERIAL'] in partida_set
-    qtd_chamados = row['QTD_CHAMADOS']
-    
-    if has_partida_inicial:
-        return 'SIM - DFS'
-    elif qtd_chamados > 0:
-        return 'SIM - TERCEIRO'
-    else:
-        return 'NÃO'
-
-# Apply the new logic
-filtered_filtros_unique['PARTIDA_INICIAL'] = filtered_filtros_unique.apply(determine_partida_inicial, axis=1)
+# Add partida inicial info using business logic
+filtered_filtros_unique['PARTIDA_INICIAL'] = filtered_filtros_unique.apply(
+    lambda row: bl.determine_partida_inicial_status(row['NUM_SERIAL'], partida_set, row['QTD_CHAMADOS']), 
+    axis=1
+)
 
 # Format FIM_GARANTIA as date string
 if 'FIM_GARANTIA' in filtered_filtros_unique.columns:
