@@ -387,6 +387,36 @@ def choropleth_map_brazil(df: pd.DataFrame, estado_counts: pd.DataFrame) -> Any:
             customdata=estado_counts[['Percentual']].values
         )
         
+        # Add text annotations with percentages on each state
+        # Get centroids for Brazilian states (approximate coordinates)
+        state_centroids = {
+            'AC': (-70.55, -9.0238), 'AL': (-36.782, -9.5713), 'AP': (-51.9777, 1.4558),
+            'AM': (-64.0685, -3.4168), 'BA': (-41.5756, -12.5797), 'CE': (-39.5182, -5.4984),
+            'DF': (-47.9292, -15.7801), 'ES': (-40.3377, -19.1834), 'GO': (-49.2532, -16.3544),
+            'MA': (-45.0183, -4.9609), 'MG': (-45.2471, -18.5122), 'MS': (-54.7972, -20.7722),
+            'MT': (-56.0926, -12.6819), 'PA': (-52.9336, -6.7719), 'PB': (-36.72, -7.24),
+            'PE': (-37.9717, -8.8137), 'PI': (-42.7098, -8.5014), 'PR': (-51.6059, -24.89),
+            'RJ': (-43.7729, -22.4756), 'RN': (-36.9541, -5.4026), 'RO': (-63.5806, -11.5057),
+            'RR': (-61.4194, 2.7376), 'RS': (-53.5233, -30.8283), 'SC': (-50.1978, -27.2423),
+            'SE': (-37.3045, -10.5741), 'SP': (-48.6753, -23.9618), 'TO': (-48.2982, -10.6632)
+        }
+        
+        # Add text annotations for each state with percentage
+        for idx, row in estado_counts.iterrows():
+            uf = row['UF']
+            if uf in state_centroids and row['Percentual'] >= 1.0:  # Only show % for states with >= 1%
+                lon, lat = state_centroids[uf]
+                fig.add_annotation(
+                    x=lon,
+                    y=lat,
+                    text=f"{row['Percentual']:.1f}%",
+                    showarrow=False,
+                    font=dict(color="black", size=10, family="Arial Black"),
+                    bgcolor="rgba(255,255,255,0.8)",
+                    bordercolor="black",
+                    borderwidth=1
+                )
+        
         fig.update_geos(
             showcountries=False,
             showcoastlines=False,
@@ -425,6 +455,7 @@ def choropleth_map_brazil(df: pd.DataFrame, estado_counts: pd.DataFrame) -> Any:
             y='Quantidade',
             color='Quantidade',
             hover_data=['Percentual'],
+            text='Percentual',  # Add percentages as text on bars
             color_continuous_scale=[
                 [0.0, "#f7fbff"],
                 [0.125, "#deebf7"],
@@ -440,11 +471,13 @@ def choropleth_map_brazil(df: pd.DataFrame, estado_counts: pd.DataFrame) -> Any:
             labels={'Quantidade': 'Quantidade de Bombas', 'UF': 'Estado', 'Percentual': 'Percentual (%)'}
         )
         
-        # Update hover template for bar chart
+        # Update hover template for bar chart and format text on bars
         fig.update_traces(
             hovertemplate="<b>%{x}</b><br>" +
                          "Quantidade: %{y}<br>" +
-                         "Percentual: %{customdata[0]:.1f}%<extra></extra>"
+                         "Percentual: %{customdata[0]:.1f}%<extra></extra>",
+            texttemplate='%{text:.1f}%',
+            textposition='outside'
         )
         
         fig.update_layout(
