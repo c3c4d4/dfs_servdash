@@ -8,7 +8,17 @@ env/
 venv/
 *.log
 nul
-backups/
-logs/
+
+# Ignore all CSV and Excel files by default
 *.csv
 *.xlsx
+
+# Allow specific files needed for the dashboard
+!o2c_unpacked.csv
+!chamados.csv
+!chamados_fechados.csv
+!BASE_ERROS_RTM.csv
+
+# Ignore backups and logs
+backups/
+logs/
