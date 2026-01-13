@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.venv
+env/
+venv/
+*.log
+nul
+backups/
+logs/
+*.csv
+*.xlsx
