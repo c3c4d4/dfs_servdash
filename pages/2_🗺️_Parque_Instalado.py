@@ -159,7 +159,9 @@ elif "GARANTIA" in o2c.columns:
 # Clean filter columns to avoid sorted() errors with mixed types
 for col in available_filter_columns:
     if col in o2c.columns:
-        # Convert to string and fill NaN to avoid sorting issues
+        # Convert categorical to object first, then fill NaN to avoid category errors
+        if hasattr(o2c[col], "cat"):
+            o2c[col] = o2c[col].astype(str)
         o2c[col] = o2c[col].fillna("N/A").astype(str)
 
 with st.sidebar:
