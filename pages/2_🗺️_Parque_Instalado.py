@@ -24,7 +24,6 @@ check_password()
 
 
 # --- Carregamento dos dados principais com otimizações ---
-@st.cache_data(ttl=3600, show_spinner=False)
 def load_o2c_data():
     """Load O2C data with optimizations."""
     df = carregar_o2c()
@@ -39,7 +38,6 @@ def load_o2c_data():
     return df
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
 def load_chamados_data():
     """Load chamados data with optimizations."""
     df = carregar_dados_merged()
@@ -66,7 +64,6 @@ erros_rtm = carregar_base_erros_rtm()
 
 
 # --- Pré-processamento e enriquecimento das bases ---
-@st.cache_data(ttl=1800, show_spinner=False)
 def preprocess_o2c_data(o2c_df: pd.DataFrame):
     """Preprocess O2C data with optimizations."""
     df = o2c_df.copy()
@@ -94,7 +91,6 @@ def preprocess_o2c_data(o2c_df: pd.DataFrame):
     return df
 
 
-@st.cache_data(ttl=1800, show_spinner=False)
 def precompute_chamados_dicts(chamados_df: pd.DataFrame):
     """Precompute chamados dictionaries for fast filtering."""
     df = chamados_df.copy()

@@ -21,7 +21,6 @@ GARANTIA_PERIODS = {
 GARANTIA_ELETRONICA_DAYS = 365
 
 
-@st.cache_data(ttl=900, show_spinner=False)
 def get_ss_for_chassis(
     chassis_list: List[str], chamados_dict: Dict[str, List[str]]
 ) -> Set[str]:
@@ -33,7 +32,6 @@ def get_ss_for_chassis(
     return ss_set
 
 
-@st.cache_data(ttl=900, show_spinner=False)
 def calculate_qtd_chamados(
     df: pd.DataFrame, chassi_counts_series: pd.Series
 ) -> pd.Series:
@@ -41,7 +39,6 @@ def calculate_qtd_chamados(
     return df["NUM_SERIAL"].map(chassi_counts_series).fillna(0).astype(int)
 
 
-@st.cache_data(ttl=900, show_spinner=False)
 def create_duracao_garantia_column(garantia_series: pd.Series) -> pd.Series:
     """Create user-friendly warranty duration labels."""
 

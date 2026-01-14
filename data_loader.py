@@ -130,6 +130,33 @@ def carregar_dados_merged(
 @st.cache_data(ttl=3600, show_spinner=False)
 def carregar_o2c(filepath: str = "o2c_unpacked.csv") -> pd.DataFrame:
     """Load O2C data with optimizations."""
+
+    # Define columns to keep to reduce memory usage
+    cols_to_keep = [
+        "Serial",
+        "NUM_SERIAL",
+        "RTM",
+        "GARANTIA",
+        "UF",
+        "CIDADE",
+        "ESTADO",
+        "PAIS",
+        "NOME_PAIS",
+        "DT_NUM_NF",
+        "ITEM",
+        "MODELO",
+        "SÉRIE",
+        "SERIE",
+        "NUM_SERIE",
+        "CLIENTE",
+        "DURAÇÃO_GARANTIA",
+        "DURACAO_GARANTIA",
+    ]
+
+    # Helper to check if column should be loaded (case insensitive)
+    def column_filter(col):
+        return col.strip() in cols_to_keep or col.strip().upper() in cols_to_keep
+
     dtype_dict = {
         "Serial": "string",
         "RTM": "string",
@@ -137,17 +164,37 @@ def carregar_o2c(filepath: str = "o2c_unpacked.csv") -> pd.DataFrame:
         "UF": "string",
         "CIDADE": "string",
         "ESTADO": "string",
+        "PAIS": "string",
+        "NOME_PAIS": "string",
+        "CLIENTE": "string",
+        "ITEM": "string",
+        "MODELO": "string",
     }
 
-    df = pd.read_csv(
-        filepath,
-        sep=";",
-        encoding="utf-8-sig",
-        dtype=dtype_dict,
-        parse_dates=["DT_NUM_NF"],
-        dayfirst=True,
-        cache_dates=True,
-    )
+    try:
+        df = pd.read_csv(
+            filepath,
+            sep=";",
+            encoding="utf-8-sig",
+            dtype=dtype_dict,
+            parse_dates=["DT_NUM_NF"],
+            dayfirst=True,
+            cache_dates=True,
+            usecols=column_filter,
+            engine="c",  # Ensure C engine is used for performance
+            low_memory=True,
+        )
+    except ValueError:
+        # Fallback if usecols fails (e.g. none of the columns found, unlikely but possible)
+        df = pd.read_csv(
+            filepath,
+            sep=";",
+            encoding="utf-8-sig",
+            dtype=dtype_dict,
+            parse_dates=["DT_NUM_NF"],
+            dayfirst=True,
+            cache_dates=True,
+        )
 
     # Rename Serial to NUM_SERIAL for compatibility with dashboard
     if "Serial" in df.columns:
@@ -364,7 +411,6 @@ def get_mapping_dicts() -> Tuple[Dict[str, str], Dict[str, str], Dict[str, str]]
 
 
 # Optimized data processing functions
-@st.cache_data(ttl=1800, show_spinner=False)
 def process_chamados_data(df: pd.DataFrame) -> pd.DataFrame:
     """Process and enrich chamados data with optimizations."""
     df = df.copy()
@@ -394,7 +440,6 @@ def process_chamados_data(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-@st.cache_data(ttl=1800, show_spinner=False)
 def process_o2c_data(df: pd.DataFrame) -> pd.DataFrame:
     """Process and enrich O2C data with optimizations."""
     from utils import extrair_modelo_vectorized
@@ -404,7 +449,7 @@ def process_o2c_data(df: pd.DataFrame) -> pd.DataFrame:
     # Optimize datetime operations
     if "DT_NUM_NF" in df.columns:
         df["DT_NUM_NF"] = pd.to_datetime(
-            df["DT_NUM_NF"], dayfirst=True, errors="coerce"
+            df["DT_NUM_NF"], dayfirst=True, errors="coerce", format="mixed"
         )
         df["ANO_NF"] = df["DT_NUM_NF"].dt.year
 
@@ -433,6 +478,17 @@ def process_o2c_data(df: pd.DataFrame) -> pd.DataFrame:
         df["MODELO"] = extrair_modelo_vectorized(df["SERIE"])
     else:
         df["MODELO"] = ""
+
+    # Filter out export units (keep only Brazil)
+    if "PAIS" in df.columns:
+        # Check for BR with potential whitespace
+        df = df[df["PAIS"].astype(str).str.strip() == "BR"]
+    elif "NOME_PAIS" in df.columns:
+        df = df[df["NOME_PAIS"].astype(str).str.strip().str.upper() == "BRASIL"]
+
+    # Filter out MODELO "OUTROS"
+    if "MODELO" in df.columns:
+        df = df[df["MODELO"] != "OUTROS"]
 
     return df
 
