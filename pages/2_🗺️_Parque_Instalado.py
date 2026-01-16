@@ -277,344 +277,6 @@ filtered_filtros_unique["QTD_CHAMADOS"] = bl.calculate_qtd_chamados(
 # Add electronic warranty columns
 filtered_filtros_unique = bl.add_garantia_eletronica_columns(filtered_filtros_unique)
 
-# --- KPIs ---
-st.title("🗺️ Parque Instalado - Análise por Estado")
-
-# Primeira linha de KPIs
-col1, col2, col3, col4, col5, col6, col7, col8, col9 = st.columns(9)
-col1.metric("Total de Bombas", total_bombas_filtro)
-col2.metric("% Com Partida (DFS)", f"{pct_com_partida_dfs:.1f}%")
-col3.metric("% Com Partida (Terceiros)", f"{pct_com_partida_terceiros:.1f}%")
-col4.metric("% Com Chamado Garantia", f"{pct_com_chamado:.1f}%")
-col5.metric("% Sem Chamado Garantia", f"{pct_sem_chamado:.1f}%")
-col6.metric("% RTM", f"{pct_rtm:.1f}%")
-col7.metric("% Em Garantia", f"{pct_em_garantia:.1f}%")
-col8.metric("% Fora de Garantia", f"{pct_fora_garantia:.1f}%")
-col9.metric("Média Chamados/Bomba", f"{media_chamados_por_bomba:.1f}")
-
-
-# Segunda linha de KPIs - Valores
-col10, col11, col12, col13 = st.columns(4)
-col10.metric(
-    "Média Valor Total (R$)",
-    f"R$ {media_valor_total:,.2f}".replace(",", "X")
-    .replace(".", ",")
-    .replace("X", "."),
-)
-col11.metric(
-    "Média Valor Peça (R$)",
-    f"R$ {media_valor_peca:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
-)
-col12.metric(
-    "Soma Valor Total (R$)",
-    f"R$ {soma_valor_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
-)
-col13.metric(
-    "Soma Valor Peça (R$)",
-    f"R$ {soma_valor_peca:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
-)
-
-# Terceira linha de KPIs - Distribuição por Modelo
-if len(filtered_filtros_unique) > 0 and "MODELO" in filtered_filtros_unique.columns:
-    # Calculate model distribution
-    total = len(filtered_filtros_unique)
-    model_counts = filtered_filtros_unique["MODELO"].value_counts()
-    main_models = ["HELIX", "VISTA", "CENTURY", "3G", "E123", "7502A"]
-
-    # Calculate percentages
-    pct_helix = (model_counts.get("HELIX", 0) / total * 100) if total > 0 else 0
-    pct_vista = (model_counts.get("VISTA", 0) / total * 100) if total > 0 else 0
-    pct_century = (model_counts.get("CENTURY", 0) / total * 100) if total > 0 else 0
-    pct_3g = (model_counts.get("3G", 0) / total * 100) if total > 0 else 0
-    pct_e123 = (model_counts.get("E123", 0) / total * 100) if total > 0 else 0
-    pct_7502a = (model_counts.get("7502A", 0) / total * 100) if total > 0 else 0
-
-    # Others percentage
-    others_count = model_counts[~model_counts.index.isin(main_models)].sum()
-    pct_others = (others_count / total * 100) if total > 0 else 0
-
-    col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
-    col1.metric("% HELIX", f"{pct_helix:.1f}%")
-    col2.metric("% VISTA", f"{pct_vista:.1f}%")
-    col3.metric("% CENTURY", f"{pct_century:.1f}%")
-    col4.metric("% 3G", f"{pct_3g:.1f}%")
-    col5.metric("% E123", f"{pct_e123:.1f}%")
-    col6.metric("% 7502A", f"{pct_7502a:.1f}%")
-    col7.metric("% Outros", f"{pct_others:.1f}%")
-
-# Terceira linha de KPIs - Garantia Eletrônica e Distribuição por Faixas
-col14, col15, col16, col17, col18, col19, col20 = st.columns(7)
-
-# Garantia Eletrônica
-media_garan_eletr = (
-    filtered_filtros_unique["GARANTIA_ELETRONICA"].mean()
-    if len(filtered_filtros_unique) > 0
-    else 0
-)
-qtd_dentro_eletr = (filtered_filtros_unique["STATUS_GARAN_ELETRICA"] == "DENTRO").sum()
-qtd_fora_eletr = (filtered_filtros_unique["STATUS_GARAN_ELETRICA"] == "FORA").sum()
-total_eletr = qtd_dentro_eletr + qtd_fora_eletr
-pct_dentro_eletr = 100 * qtd_dentro_eletr / total_eletr if total_eletr else 0
-pct_fora_eletr = 100 * qtd_fora_eletr / total_eletr if total_eletr else 0
-
-# Calculate warranty distribution using business logic
-garantia_dist = bl.calculate_garantia_distribution(filtered_filtros_unique)
-pct_6m = garantia_dist["pct_6m"]
-pct_12m = garantia_dist["pct_12m"]
-pct_18m = garantia_dist["pct_18m"]
-pct_24m = garantia_dist["pct_24m"]
-pct_36m = garantia_dist["pct_36m"]
-
-# Exibir métricas
-col14.metric("% Dentro Gar. Eletrônica", f"{pct_dentro_eletr:.1f}%")
-col15.metric("% Fora Gar. Eletrônica", f"{pct_fora_eletr:.1f}%")
-col16.metric("% Garantia 6m", f"{pct_6m:.1f}%")
-col17.metric("% Garantia 12m", f"{pct_12m:.1f}%")
-col18.metric("% Garantia 18m", f"{pct_18m:.1f}%")
-col19.metric("% Garantia 24m", f"{pct_24m:.1f}%")
-col20.metric("% Garantia 36m", f"{pct_36m:.1f}%")
-
-# --- Mapa ---
-st.header("📊 Distribuição Geográfica")
-
-# Check if we have data for the map
-if len(filtered_filtros_unique) > 0:
-    # Ensure UF column exists and has valid data
-    if "UF" in filtered_filtros_unique.columns:
-        # Remove rows with empty or invalid UF
-        filtered_filtros_map = filtered_filtros_unique[
-            (filtered_filtros_unique["UF"].notna())
-            & (filtered_filtros_unique["UF"].astype(str).str.strip() != "")
-            & (filtered_filtros_unique["UF"].astype(str).str.strip() != "NAN")
-        ].copy()
-
-        if len(filtered_filtros_map) > 0:
-            # Update state counts for filtered data (deduplicated)
-            estado_counts_filtrado = (
-                filtered_filtros_map.groupby("UF").size().reset_index(name="Quantidade")
-            )
-
-            # Create map
-            try:
-                fig_mapa = vz.choropleth_map_brazil(
-                    filtered_filtros_map, estado_counts_filtrado
-                )
-                st.plotly_chart(fig_mapa, use_container_width=True)
-            except Exception as e:
-                st.error(f"❌ Erro ao criar mapa: {str(e)}")
-
-                # Fallback: Simple bar chart
-                st.info("📊 Exibindo gráfico de barras como alternativa:")
-                fig_bar = px.bar(
-                    estado_counts_filtrado,
-                    x="UF",
-                    y="Quantidade",
-                    color="Quantidade",
-                    color_continuous_scale="Blues",
-                    title="Distribuição de Bombas por Estado",
-                )
-                fig_bar.update_layout(
-                    xaxis_title="Estado",
-                    yaxis_title="Quantidade de Bombas",
-                    height=500,
-                    xaxis_tickangle=-45,
-                )
-                st.plotly_chart(fig_bar, use_container_width=True)
-        else:
-            st.warning(
-                "⚠️ Nenhum dado válido encontrado para exibir no mapa após a filtragem."
-            )
-    else:
-        st.warning("⚠️ Coluna 'UF' não encontrada nos dados.")
-        # Try to use ESTADO column instead
-        if "ESTADO" in filtered_filtros_unique.columns:
-            st.info("🔄 Tentando usar coluna 'ESTADO'...")
-            filtered_filtros_map = filtered_filtros_unique[
-                (filtered_filtros_unique["ESTADO"].notna())
-                & (filtered_filtros_unique["ESTADO"].astype(str).str.strip() != "")
-                & (filtered_filtros_unique["ESTADO"].astype(str).str.strip() != "NAN")
-            ].copy()
-
-            if len(filtered_filtros_map) > 0:
-                estado_counts_filtrado = (
-                    filtered_filtros_map.groupby("ESTADO")
-                    .size()
-                    .reset_index(name="Quantidade")
-                )
-                try:
-                    fig_mapa = vz.choropleth_map_brazil(
-                        filtered_filtros_map, estado_counts_filtrado
-                    )
-                    st.plotly_chart(fig_mapa, use_container_width=True)
-                except Exception as e:
-                    st.error(f"❌ Erro ao criar mapa com ESTADO: {str(e)}")
-else:
-    st.warning("⚠️ Nenhum dado encontrado após a aplicação dos filtros.")
-
-# --- Tabela Detalhada ---
-st.header("📋 Detalhamento das Bombas")
-
-# Ensure missing columns are added with default values
-if "MODELO" not in filtered_filtros_unique.columns:
-    # If MODELO doesn't exist, try to create it from available columns (prioritize ITEM)
-    from utils import extrair_modelo_vectorized
-
-    if "ITEM" in filtered_filtros_unique.columns:
-        filtered_filtros_unique["MODELO"] = extrair_modelo_vectorized(
-            filtered_filtros_unique["ITEM"]
-        )
-    else:
-        # Fallback to serial columns
-        serial_columns = [
-            col
-            for col in filtered_filtros_unique.columns
-            if "SERIAL" in col or "SERIE" in col
-        ]
-        if serial_columns:
-            filtered_filtros_unique["MODELO"] = extrair_modelo_vectorized(
-                filtered_filtros_unique[serial_columns[0]]
-            )
-        else:
-            filtered_filtros_unique["MODELO"] = "N/A"
-
-# Prepare table data
-colunas_tabela_requested = [
-    "NUM_SERIAL",
-    "MODELO",
-    "UF",
-    "CIDADE",
-    "CLIENTE",
-    "RTM",
-    "STATUS_GARANTIA",
-    "FIM_GARANTIA",
-    "ANO_NF",
-    "DT_NUM_NF",
-    "GARANTIA",
-    "GARANTIA_ELETRONICA",
-    "FIM_GARAN_ELETRICA",
-    "STATUS_GARAN_ELETRICA",
-]
-
-# Only use columns that actually exist in the dataframe
-colunas_tabela = [
-    col for col in colunas_tabela_requested if col in filtered_filtros_unique.columns
-]
-
-# QTD_CHAMADOS already calculated above using centralized function
-
-# Ensure CLIENTE column exists
-if "CLIENTE" not in filtered_filtros_unique.columns:
-    filtered_filtros_unique["CLIENTE"] = ""
-
-# Ensure electronic warranty columns exist (in case they weren't added properly)
-if "GARANTIA_ELETRONICA" not in filtered_filtros_unique.columns:
-    filtered_filtros_unique["GARANTIA_ELETRONICA"] = 365
-if "FIM_GARAN_ELETRICA" not in filtered_filtros_unique.columns:
-    filtered_filtros_unique["FIM_GARAN_ELETRICA"] = "N/A"
-if "STATUS_GARAN_ELETRICA" not in filtered_filtros_unique.columns:
-    filtered_filtros_unique["STATUS_GARAN_ELETRICA"] = "N/A"
-
-# Add partida inicial info using business logic
-filtered_filtros_unique["PARTIDA_INICIAL"] = filtered_filtros_unique.apply(
-    lambda row: bl.determine_partida_inicial_status(
-        row["NUM_SERIAL"], partida_set, row["QTD_CHAMADOS"]
-    ),
-    axis=1,
-)
-
-# Format FIM_GARANTIA as date string
-if "FIM_GARANTIA" in filtered_filtros_unique.columns:
-    filtered_filtros_unique["FIM_GARANTIA"] = filtered_filtros_unique[
-        "FIM_GARANTIA"
-    ].dt.strftime("%d/%m/%Y")
-
-# Prepare columns for display
-display_columns = colunas_tabela + ["QTD_CHAMADOS", "PARTIDA_INICIAL", "CHAMADOS_LISTA"]
-display_columns = [
-    col for col in display_columns if col in filtered_filtros_unique.columns
-]
-
-# Create column config only for existing columns
-column_config = {}
-if "NUM_SERIAL" in filtered_filtros_unique.columns:
-    column_config["NUM_SERIAL"] = st.column_config.TextColumn(
-        "Número Serial", width="medium"
-    )
-if "MODELO" in filtered_filtros_unique.columns:
-    column_config["MODELO"] = st.column_config.TextColumn("Modelo", width="small")
-if "UF" in filtered_filtros_unique.columns:
-    column_config["UF"] = st.column_config.TextColumn("UF", width="small")
-if "CIDADE" in filtered_filtros_unique.columns:
-    column_config["CIDADE"] = st.column_config.TextColumn("Cidade", width="medium")
-if "CLIENTE" in filtered_filtros_unique.columns:
-    column_config["CLIENTE"] = st.column_config.TextColumn("Cliente", width="medium")
-if "RTM" in filtered_filtros_unique.columns:
-    column_config["RTM"] = st.column_config.TextColumn("RTM", width="small")
-if "STATUS_GARANTIA" in filtered_filtros_unique.columns:
-    column_config["STATUS_GARANTIA"] = st.column_config.TextColumn(
-        "Status Garantia", width="small"
-    )
-if "FIM_GARANTIA" in filtered_filtros_unique.columns:
-    column_config["FIM_GARANTIA"] = st.column_config.TextColumn(
-        "Fim Garantia", width="small"
-    )
-if "ANO_NF" in filtered_filtros_unique.columns:
-    column_config["ANO_NF"] = st.column_config.NumberColumn(
-        "Ano NF", format="%d", width="small"
-    )
-if "DT_NUM_NF" in filtered_filtros_unique.columns:
-    column_config["DT_NUM_NF"] = st.column_config.DateColumn(
-        "Data NF", format="DD/MM/YYYY", width="small"
-    )
-if "GARANTIA" in filtered_filtros_unique.columns:
-    column_config["GARANTIA"] = st.column_config.TextColumn(
-        "Garantia (dias)", width="small"
-    )
-if "QTD_CHAMADOS" in filtered_filtros_unique.columns:
-    column_config["QTD_CHAMADOS"] = st.column_config.NumberColumn(
-        "Qtd Chamados", format="%d", width="small"
-    )
-if "PARTIDA_INICIAL" in filtered_filtros_unique.columns:
-    column_config["PARTIDA_INICIAL"] = st.column_config.TextColumn(
-        "Partida Inicial", width="small"
-    )
-if "CHAMADOS_LISTA" in filtered_filtros_unique.columns:
-    column_config["CHAMADOS_LISTA"] = st.column_config.TextColumn(
-        "Chamados (SS)", width="large"
-    )
-if "GARANTIA_ELETRONICA" in filtered_filtros_unique.columns:
-    column_config["GARANTIA_ELETRONICA"] = st.column_config.TextColumn(
-        "Garantia Eletrônica", width="small"
-    )
-if "FIM_GARAN_ELETRICA" in filtered_filtros_unique.columns:
-    column_config["FIM_GARAN_ELETRICA"] = st.column_config.TextColumn(
-        "Fim Garantia Eletrônica", width="small"
-    )
-if "STATUS_GARAN_ELETRICA" in filtered_filtros_unique.columns:
-    column_config["STATUS_GARAN_ELETRICA"] = st.column_config.TextColumn(
-        "Status Garantia Eletrônica", width="small"
-    )
-
-# Display table
-st.dataframe(
-    filtered_filtros_unique[display_columns],
-    use_container_width=True,
-    hide_index=True,
-    column_config=column_config,
-)
-
-
-# --- Funções auxiliares para detalhamento ---
-def partida_inicial_info(chassi):
-    """Get partida inicial information for a chassis."""
-    return "SIM" if chassi in partida_set else "NÃO"
-
-
-def chamados_lista(chassi):
-    """Get list of calls for a chassis."""
-    return chamados_por_chassi_dict.get(chassi, [])
-
-
 # --- Download functionality ---
 @st.cache_data(ttl=900, show_spinner=False)
 def prepare_download_data(df: pd.DataFrame):
@@ -635,13 +297,364 @@ def prepare_download_data(df: pd.DataFrame):
 
     return download_df
 
+# --- KPIs ---
+st.title("🗺️ Parque Instalado - Análise por Estado")
+tab_kpis, tab_tabela = st.tabs(["📌 KPIs", "📋 Parque Instalado"])
 
-# Download button
-download_data = prepare_download_data(filtered_filtros_unique)
-csv = download_data.to_csv(index=False, sep=";", encoding="utf-8-sig")
-st.download_button(
-    label="📥 Download dos Dados Filtrados",
-    data=csv,
-    file_name=f"parque_instalado_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-    mime="text/csv",
-)
+with tab_kpis:
+    # Primeira linha de KPIs
+    col1, col2, col3, col4, col5, col6, col7, col8, col9 = st.columns(9)
+    col1.metric("Total de Bombas", total_bombas_filtro)
+    col2.metric("% Com Partida (DFS)", f"{pct_com_partida_dfs:.1f}%")
+    col3.metric("% Com Partida (Terceiros)", f"{pct_com_partida_terceiros:.1f}%")
+    col4.metric("% Com Chamado Garantia", f"{pct_com_chamado:.1f}%")
+    col5.metric("% Sem Chamado Garantia", f"{pct_sem_chamado:.1f}%")
+    col6.metric("% RTM", f"{pct_rtm:.1f}%")
+    col7.metric("% Em Garantia", f"{pct_em_garantia:.1f}%")
+    col8.metric("% Fora de Garantia", f"{pct_fora_garantia:.1f}%")
+    col9.metric("Média Chamados/Bomba", f"{media_chamados_por_bomba:.1f}")
+
+    # Segunda linha de KPIs - Valores
+    col10, col11, col12, col13 = st.columns(4)
+    col10.metric(
+        "Média Valor Total (R$)",
+        f"R$ {media_valor_total:,.2f}".replace(",", "X")
+        .replace(".", ",")
+        .replace("X", "."),
+    )
+    col11.metric(
+        "Média Valor Peça (R$)",
+        f"R$ {media_valor_peca:,.2f}".replace(",", "X")
+        .replace(".", ",")
+        .replace("X", "."),
+    )
+    col12.metric(
+        "Soma Valor Total (R$)",
+        f"R$ {soma_valor_total:,.2f}".replace(",", "X")
+        .replace(".", ",")
+        .replace("X", "."),
+    )
+    col13.metric(
+        "Soma Valor Peça (R$)",
+        f"R$ {soma_valor_peca:,.2f}".replace(",", "X")
+        .replace(".", ",")
+        .replace("X", "."),
+    )
+
+    # Terceira linha de KPIs - Distribuição por Modelo
+    if len(filtered_filtros_unique) > 0 and "MODELO" in filtered_filtros_unique.columns:
+        # Calculate model distribution
+        total = len(filtered_filtros_unique)
+        model_counts = filtered_filtros_unique["MODELO"].value_counts()
+        main_models = ["HELIX", "VISTA", "CENTURY", "3G", "E123", "7502A"]
+
+        # Calculate percentages
+        pct_helix = (model_counts.get("HELIX", 0) / total * 100) if total > 0 else 0
+        pct_vista = (model_counts.get("VISTA", 0) / total * 100) if total > 0 else 0
+        pct_century = (
+            model_counts.get("CENTURY", 0) / total * 100 if total > 0 else 0
+        )
+        pct_3g = (model_counts.get("3G", 0) / total * 100) if total > 0 else 0
+        pct_e123 = (model_counts.get("E123", 0) / total * 100) if total > 0 else 0
+        pct_7502a = (model_counts.get("7502A", 0) / total * 100) if total > 0 else 0
+
+        # Others percentage
+        others_count = model_counts[~model_counts.index.isin(main_models)].sum()
+        pct_others = (others_count / total * 100) if total > 0 else 0
+
+        col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
+        col1.metric("% HELIX", f"{pct_helix:.1f}%")
+        col2.metric("% VISTA", f"{pct_vista:.1f}%")
+        col3.metric("% CENTURY", f"{pct_century:.1f}%")
+        col4.metric("% 3G", f"{pct_3g:.1f}%")
+        col5.metric("% E123", f"{pct_e123:.1f}%")
+        col6.metric("% 7502A", f"{pct_7502a:.1f}%")
+        col7.metric("% Outros", f"{pct_others:.1f}%")
+
+    # Terceira linha de KPIs - Garantia Eletrônica e Distribuição por Faixas
+    col14, col15, col16, col17, col18, col19, col20 = st.columns(7)
+
+    # Garantia Eletrônica
+    media_garan_eletr = (
+        filtered_filtros_unique["GARANTIA_ELETRONICA"].mean()
+        if len(filtered_filtros_unique) > 0
+        else 0
+    )
+    qtd_dentro_eletr = (
+        filtered_filtros_unique["STATUS_GARAN_ELETRICA"] == "DENTRO"
+    ).sum()
+    qtd_fora_eletr = (
+        filtered_filtros_unique["STATUS_GARAN_ELETRICA"] == "FORA"
+    ).sum()
+    total_eletr = qtd_dentro_eletr + qtd_fora_eletr
+    pct_dentro_eletr = 100 * qtd_dentro_eletr / total_eletr if total_eletr else 0
+    pct_fora_eletr = 100 * qtd_fora_eletr / total_eletr if total_eletr else 0
+
+    # Calculate warranty distribution using business logic
+    garantia_dist = bl.calculate_garantia_distribution(filtered_filtros_unique)
+    pct_6m = garantia_dist["pct_6m"]
+    pct_12m = garantia_dist["pct_12m"]
+    pct_18m = garantia_dist["pct_18m"]
+    pct_24m = garantia_dist["pct_24m"]
+    pct_36m = garantia_dist["pct_36m"]
+
+    # Exibir métricas
+    col14.metric("% Dentro Gar. Eletrônica", f"{pct_dentro_eletr:.1f}%")
+    col15.metric("% Fora Gar. Eletrônica", f"{pct_fora_eletr:.1f}%")
+    col16.metric("% Garantia 6m", f"{pct_6m:.1f}%")
+    col17.metric("% Garantia 12m", f"{pct_12m:.1f}%")
+    col18.metric("% Garantia 18m", f"{pct_18m:.1f}%")
+    col19.metric("% Garantia 24m", f"{pct_24m:.1f}%")
+    col20.metric("% Garantia 36m", f"{pct_36m:.1f}%")
+
+    # --- Mapa ---
+    st.header("📊 Distribuição Geográfica")
+
+    # Check if we have data for the map
+    if len(filtered_filtros_unique) > 0:
+        # Ensure UF column exists and has valid data
+        if "UF" in filtered_filtros_unique.columns:
+            # Remove rows with empty or invalid UF
+            filtered_filtros_map = filtered_filtros_unique[
+                (filtered_filtros_unique["UF"].notna())
+                & (filtered_filtros_unique["UF"].astype(str).str.strip() != "")
+                & (filtered_filtros_unique["UF"].astype(str).str.strip() != "NAN")
+            ].copy()
+
+            if len(filtered_filtros_map) > 0:
+                # Update state counts for filtered data (deduplicated)
+                estado_counts_filtrado = (
+                    filtered_filtros_map.groupby("UF")
+                    .size()
+                    .reset_index(name="Quantidade")
+                )
+
+                # Create map
+                try:
+                    fig_mapa = vz.choropleth_map_brazil(
+                        filtered_filtros_map, estado_counts_filtrado
+                    )
+                    st.plotly_chart(fig_mapa, use_container_width=True)
+                except Exception as e:
+                    st.error(f"❌ Erro ao criar mapa: {str(e)}")
+
+                    # Fallback: Simple bar chart
+                    st.info("📊 Exibindo gráfico de barras como alternativa:")
+                    fig_bar = px.bar(
+                        estado_counts_filtrado,
+                        x="UF",
+                        y="Quantidade",
+                        color="Quantidade",
+                        color_continuous_scale="Blues",
+                        title="Distribuição de Bombas por Estado",
+                    )
+                    fig_bar.update_layout(
+                        xaxis_title="Estado",
+                        yaxis_title="Quantidade de Bombas",
+                        height=500,
+                        xaxis_tickangle=-45,
+                    )
+                    st.plotly_chart(fig_bar, use_container_width=True)
+            else:
+                st.warning(
+                    "⚠️ Nenhum dado válido encontrado para exibir no mapa após a filtragem."
+                )
+        else:
+            st.warning("⚠️ Coluna 'UF' não encontrada nos dados.")
+            # Try to use ESTADO column instead
+            if "ESTADO" in filtered_filtros_unique.columns:
+                st.info("🔄 Tentando usar coluna 'ESTADO'...")
+                filtered_filtros_map = filtered_filtros_unique[
+                    (filtered_filtros_unique["ESTADO"].notna())
+                    & (filtered_filtros_unique["ESTADO"].astype(str).str.strip() != "")
+                    & (filtered_filtros_unique["ESTADO"].astype(str).str.strip() != "NAN")
+                ].copy()
+
+                if len(filtered_filtros_map) > 0:
+                    estado_counts_filtrado = (
+                        filtered_filtros_map.groupby("ESTADO")
+                        .size()
+                        .reset_index(name="Quantidade")
+                    )
+                    try:
+                        fig_mapa = vz.choropleth_map_brazil(
+                            filtered_filtros_map, estado_counts_filtrado
+                        )
+                        st.plotly_chart(fig_mapa, use_container_width=True)
+                    except Exception as e:
+                        st.error(f"❌ Erro ao criar mapa com ESTADO: {str(e)}")
+    else:
+        st.warning("⚠️ Nenhum dado encontrado após a aplicação dos filtros.")
+
+with tab_tabela:
+    # --- Tabela Detalhada ---
+    st.header("📋 Detalhamento das Bombas")
+
+    # Ensure missing columns are added with default values
+    if "MODELO" not in filtered_filtros_unique.columns:
+        # If MODELO doesn't exist, try to create it from available columns (prioritize ITEM)
+        from utils import extrair_modelo_vectorized
+
+        if "ITEM" in filtered_filtros_unique.columns:
+            filtered_filtros_unique["MODELO"] = extrair_modelo_vectorized(
+                filtered_filtros_unique["ITEM"]
+            )
+        else:
+            # Fallback to serial columns
+            serial_columns = [
+                col
+                for col in filtered_filtros_unique.columns
+                if "SERIAL" in col or "SERIE" in col
+            ]
+            if serial_columns:
+                filtered_filtros_unique["MODELO"] = extrair_modelo_vectorized(
+                    filtered_filtros_unique[serial_columns[0]]
+                )
+            else:
+                filtered_filtros_unique["MODELO"] = "N/A"
+
+    # Prepare table data
+    colunas_tabela_requested = [
+        "NUM_SERIAL",
+        "MODELO",
+        "UF",
+        "CIDADE",
+        "CLIENTE",
+        "RTM",
+        "STATUS_GARANTIA",
+        "FIM_GARANTIA",
+        "ANO_NF",
+        "DT_NUM_NF",
+        "GARANTIA",
+        "GARANTIA_ELETRONICA",
+        "FIM_GARAN_ELETRICA",
+        "STATUS_GARAN_ELETRICA",
+    ]
+
+    # Only use columns that actually exist in the dataframe
+    colunas_tabela = [
+        col for col in colunas_tabela_requested if col in filtered_filtros_unique.columns
+    ]
+
+    # QTD_CHAMADOS already calculated above using centralized function
+
+    # Ensure CLIENTE column exists
+    if "CLIENTE" not in filtered_filtros_unique.columns:
+        filtered_filtros_unique["CLIENTE"] = ""
+
+    # Ensure electronic warranty columns exist (in case they weren't added properly)
+    if "GARANTIA_ELETRONICA" not in filtered_filtros_unique.columns:
+        filtered_filtros_unique["GARANTIA_ELETRONICA"] = 365
+    if "FIM_GARAN_ELETRICA" not in filtered_filtros_unique.columns:
+        filtered_filtros_unique["FIM_GARAN_ELETRICA"] = "N/A"
+    if "STATUS_GARAN_ELETRICA" not in filtered_filtros_unique.columns:
+        filtered_filtros_unique["STATUS_GARAN_ELETRICA"] = "N/A"
+
+    # Add partida inicial info using business logic
+    filtered_filtros_unique["PARTIDA_INICIAL"] = filtered_filtros_unique.apply(
+        lambda row: bl.determine_partida_inicial_status(
+            row["NUM_SERIAL"], partida_set, row["QTD_CHAMADOS"]
+        ),
+        axis=1,
+    )
+
+    # Format FIM_GARANTIA as date string
+    if "FIM_GARANTIA" in filtered_filtros_unique.columns:
+        filtered_filtros_unique["FIM_GARANTIA"] = filtered_filtros_unique[
+            "FIM_GARANTIA"
+        ].dt.strftime("%d/%m/%Y")
+
+    # Prepare columns for display
+    display_columns = colunas_tabela + ["QTD_CHAMADOS", "PARTIDA_INICIAL", "CHAMADOS_LISTA"]
+    display_columns = [
+        col for col in display_columns if col in filtered_filtros_unique.columns
+    ]
+
+    # Create column config only for existing columns
+    column_config = {}
+    if "NUM_SERIAL" in filtered_filtros_unique.columns:
+        column_config["NUM_SERIAL"] = st.column_config.TextColumn(
+            "Número Serial", width="medium"
+        )
+    if "MODELO" in filtered_filtros_unique.columns:
+        column_config["MODELO"] = st.column_config.TextColumn("Modelo", width="small")
+    if "UF" in filtered_filtros_unique.columns:
+        column_config["UF"] = st.column_config.TextColumn("UF", width="small")
+    if "CIDADE" in filtered_filtros_unique.columns:
+        column_config["CIDADE"] = st.column_config.TextColumn("Cidade", width="medium")
+    if "CLIENTE" in filtered_filtros_unique.columns:
+        column_config["CLIENTE"] = st.column_config.TextColumn("Cliente", width="medium")
+    if "RTM" in filtered_filtros_unique.columns:
+        column_config["RTM"] = st.column_config.TextColumn("RTM", width="small")
+    if "STATUS_GARANTIA" in filtered_filtros_unique.columns:
+        column_config["STATUS_GARANTIA"] = st.column_config.TextColumn(
+            "Status Garantia", width="small"
+        )
+    if "FIM_GARANTIA" in filtered_filtros_unique.columns:
+        column_config["FIM_GARANTIA"] = st.column_config.TextColumn(
+            "Fim Garantia", width="small"
+        )
+    if "ANO_NF" in filtered_filtros_unique.columns:
+        column_config["ANO_NF"] = st.column_config.NumberColumn(
+            "Ano NF", format="%d", width="small"
+        )
+    if "DT_NUM_NF" in filtered_filtros_unique.columns:
+        column_config["DT_NUM_NF"] = st.column_config.DateColumn(
+            "Data NF", format="DD/MM/YYYY", width="small"
+        )
+    if "GARANTIA" in filtered_filtros_unique.columns:
+        column_config["GARANTIA"] = st.column_config.TextColumn(
+            "Garantia (dias)", width="small"
+        )
+    if "QTD_CHAMADOS" in filtered_filtros_unique.columns:
+        column_config["QTD_CHAMADOS"] = st.column_config.NumberColumn(
+            "Qtd Chamados", format="%d", width="small"
+        )
+    if "PARTIDA_INICIAL" in filtered_filtros_unique.columns:
+        column_config["PARTIDA_INICIAL"] = st.column_config.TextColumn(
+            "Partida Inicial", width="small"
+        )
+    if "CHAMADOS_LISTA" in filtered_filtros_unique.columns:
+        column_config["CHAMADOS_LISTA"] = st.column_config.TextColumn(
+            "Chamados (SS)", width="large"
+        )
+    if "GARANTIA_ELETRONICA" in filtered_filtros_unique.columns:
+        column_config["GARANTIA_ELETRONICA"] = st.column_config.TextColumn(
+            "Garantia Eletrônica", width="small"
+        )
+    if "FIM_GARAN_ELETRICA" in filtered_filtros_unique.columns:
+        column_config["FIM_GARAN_ELETRICA"] = st.column_config.TextColumn(
+            "Fim Garantia Eletrônica", width="small"
+        )
+    if "STATUS_GARAN_ELETRICA" in filtered_filtros_unique.columns:
+        column_config["STATUS_GARAN_ELETRICA"] = st.column_config.TextColumn(
+            "Status Garantia Eletrônica", width="small"
+        )
+
+    # Display table
+    st.dataframe(
+        filtered_filtros_unique[display_columns],
+        use_container_width=True,
+        hide_index=True,
+        column_config=column_config,
+    )
+
+    # Download button
+    download_data = prepare_download_data(filtered_filtros_unique)
+    csv = download_data.to_csv(index=False, sep=";", encoding="utf-8-sig")
+    st.download_button(
+        label="📥 Download dos Dados Filtrados",
+        data=csv,
+        file_name=f"parque_instalado_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+        mime="text/csv",
+    )
+
+# --- Funções auxiliares para detalhamento ---
+def partida_inicial_info(chassi):
+    """Get partida inicial information for a chassis."""
+    return "SIM" if chassi in partida_set else "NÃO"
+
+
+def chamados_lista(chassi):
+    """Get list of calls for a chassis."""
+    return chamados_por_chassi_dict.get(chassi, [])
