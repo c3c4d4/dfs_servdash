@@ -22,13 +22,15 @@ def bar_chart_count(df: pd.DataFrame, campo: str) -> Any:
         labels={"x": campo, "y": "Quantidade", "color": campo},
         color=contagem.values,
         color_continuous_scale=px.colors.sequential.Blues,
+        template="plotly_white",
     )
     fig.update_layout(
         xaxis_title=campo,
         yaxis_title="Quantidade",
-        title=f"Distribuição por {campo}",
+        title=dict(text=f"Distribuição por {campo}", x=0.5, xanchor="center"),
         xaxis_tickangle=-45,
         height=400,
+        hoverlabel=dict(bgcolor="white", font_size=12, font_family="Arial"),
     )
     return fig
 
@@ -53,13 +55,15 @@ def bar_chart_aging(df: pd.DataFrame, campo: str) -> Any:
         labels={"x": campo, "y": "Aging Médio (Dias)", "color": campo},
         color=aging_medio.values,
         color_continuous_scale=px.colors.sequential.Blues,
+        template="plotly_white",
     )
     fig.update_layout(
         xaxis_title=campo,
         yaxis_title="Aging Médio (Dias)",
-        title=f"Distribuição por {campo}",
+        title=dict(text=f"Distribuição por {campo}", x=0.5, xanchor="center"),
         xaxis_tickangle=-45,
         height=400,
+        hoverlabel=dict(bgcolor="white", font_size=12, font_family="Arial"),
     )
     return fig
 
@@ -93,8 +97,13 @@ def pie_chart_aging(df: pd.DataFrame) -> Any:
             "color": "Intervalo de Aging",
         },
         hole=0.4,
+        template="plotly_white",
     )
-    fig.update_layout(title="Distribuição de Aging (Dias)", height=400)
+    fig.update_layout(
+        title=dict(text="Distribuição de Aging (Dias)", x=0.5, xanchor="center"),
+        height=400,
+        hoverlabel=dict(bgcolor="white", font_size=12, font_family="Arial"),
+    )
     return fig
 
 
@@ -111,13 +120,15 @@ def bar_chart_tags(tags_contagem: pd.Series) -> Any:
         labels={"x": "Tags", "y": "Quantidade", "color": "Quantidade"},
         color=tags_contagem.values,
         color_continuous_scale=px.colors.sequential.Blues,
+        template="plotly_white",
     )
     fig.update_layout(
         xaxis_title="Tags",
         yaxis_title="Quantidade",
-        title="Distribuição de Tags nos Chamados",
+        title=dict(text="Distribuição de Tags nos Chamados", x=0.5, xanchor="center"),
         xaxis_tickangle=-45,
         height=400,
+        hoverlabel=dict(bgcolor="white", font_size=12, font_family="Arial"),
     )
     return fig
 
@@ -156,8 +167,15 @@ def line_chart_aging(df: pd.DataFrame, campo: str) -> Any:
         color=campo,
         title=f"Aging Médio por {campo} ao Longo do Tempo",
         markers=True,
+        template="plotly_white",
     )
-    fig.update_layout(xaxis_title="Mês", yaxis_title="Aging Médio (dias)", height=400)
+    fig.update_layout(
+        xaxis_title="Mês",
+        yaxis_title="Aging Médio (dias)",
+        height=400,
+        title=dict(x=0.5, xanchor="center"),
+        hoverlabel=dict(bgcolor="white", font_size=12, font_family="Arial"),
+    )
     return fig
 
 
@@ -190,13 +208,17 @@ def bar_chart_aging_proprietario(df: pd.DataFrame) -> Any:
             "Aging Médio (Dias)": "Aging Médio (Dias)",
             "Proprietário": "Proprietário",
         },
+        template="plotly_white",
     )
     fig.update_layout(
         xaxis_title="Proprietário",
         yaxis_title="Aging Médio (Dias)",
-        title="Performance dos Proprietários (Aging Médio)",
+        title=dict(
+            text="Performance dos Proprietários (Aging Médio)", x=0.5, xanchor="center"
+        ),
         xaxis_tickangle=-45,
         height=400,
+        hoverlabel=dict(bgcolor="white", font_size=12, font_family="Arial"),
     )
     return fig
 
@@ -230,13 +252,17 @@ def bar_chart_aging_especialista(df: pd.DataFrame) -> Any:
             "Aging Médio (Dias)": "Aging Médio (Dias)",
             "Especialista": "Especialista",
         },
+        template="plotly_white",
     )
     fig.update_layout(
         xaxis_title="Especialista",
         yaxis_title="Aging Médio (Dias)",
-        title="Performance dos Especialistas (Aging Médio)",
+        title=dict(
+            text="Performance dos Especialistas (Aging Médio)", x=0.5, xanchor="center"
+        ),
         xaxis_tickangle=-45,
         height=400,
+        hoverlabel=dict(bgcolor="white", font_size=12, font_family="Arial"),
     )
     return fig
 
@@ -267,13 +293,17 @@ def bar_chart_aging_mantenedor(df: pd.DataFrame) -> Any:
         color="Aging Médio (Dias)",
         color_continuous_scale=custom_scale,
         labels={"Aging Médio (Dias)": "Aging Médio (Dias)", "Mantenedor": "Mantenedor"},
+        template="plotly_white",
     )
     fig.update_layout(
         xaxis_title="Mantenedor",
         yaxis_title="Aging Médio (Dias)",
-        title="Performance dos Mantenedores (Aging Médio)",
+        title=dict(
+            text="Performance dos Mantenedores (Aging Médio)", x=0.5, xanchor="center"
+        ),
         xaxis_tickangle=-45,
         height=400,
+        hoverlabel=dict(bgcolor="white", font_size=12, font_family="Arial"),
     )
     return fig
 

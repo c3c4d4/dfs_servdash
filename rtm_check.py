@@ -12,6 +12,9 @@ import os
 
 init(autoreset=True)
 
+# Thread lock for cache operations
+cache_lock = threading.Lock()
+
 INPUT_CSV = "o2c_unpacked.csv"
 CACHE_FILE = "rtm_cache.csv"  # Cache de ITEM -> RTM para evitar rechecagem
 BOM_URL = (
@@ -30,7 +33,8 @@ for enc in ["utf-8-sig", "latin1", "cp1252"]:
         df = pd.read_csv(INPUT_CSV, sep=";", dtype=str, encoding=enc)
         print(Fore.GREEN + f"Successfully read {INPUT_CSV} with encoding: {enc}")
         break
-    except:
+    except Exception as e:
+        print(Fore.YELLOW + f"Failed to read {INPUT_CSV} with encoding {enc}: {e}")
         continue
 
 if df is None:
@@ -197,17 +201,20 @@ if items_to_fetch:
         ):
             try:
                 item, rtm, fail_url = future.result()
-                if rtm:
-                    rtm_cache[item] = rtm
-                if fail_url:
-                    failed_urls.append((item, fail_url))
+                with cache_lock:
+                    if rtm:
+                        rtm_cache[item] = rtm
+                    if fail_url:
+                        failed_urls.append((item, fail_url))
 
-                processed_count += 1
+                    processed_count += 1
 
-                # Salvar cache a cada BATCH_SIZE ITEMs
-                if processed_count % BATCH_SIZE == 0:
-                    save_cache()
-                    print(Fore.YELLOW + f"\nCache salvo com {len(rtm_cache)} ITEMs...")
+                    # Salvar cache a cada BATCH_SIZE ITEMs
+                    if processed_count % BATCH_SIZE == 0:
+                        save_cache()
+                        print(
+                            Fore.YELLOW + f"\nCache salvo com {len(rtm_cache)} ITEMs..."
+                        )
 
             except Exception as e:
                 print(Fore.RED + f"Erro inesperado na thread: {e}")

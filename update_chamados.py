@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import tempfile
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -8,6 +9,10 @@ import pandas as pd
 from datetime import datetime, timedelta
 from rich.console import Console
 from rich.progress import track
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # CONFIG
 URL = "https://dfsrioreporting.doverfs.com/ctrlproducao/pt/helpdeskconsultax.asp"
@@ -19,7 +24,7 @@ HEADERS = {
     "Cache-Control": "max-age=0",
     "Connection": "keep-alive",
     "Content-Type": "application/x-www-form-urlencoded",
-    "Cookie": "usuario%5Fintranet=c%5C-calmeida; idusuario%5Fintranet=3397;",  # Update as needed
+    "Cookie": os.getenv("HELPDESK_COOKIE", ""),  # Load from .env file
     "Origin": "https://dfsrioreporting.doverfs.com",
     "Referer": "https://dfsrioreporting.doverfs.com/ctrlproducao/pt/helpdeskconsulta.asp?tipo=NOVO",
     "Sec-Fetch-Dest": "frame",
@@ -34,6 +39,32 @@ HEADERS = {
 }
 
 console = Console()
+
+
+def atomic_csv_write(df: pd.DataFrame, filepath: str, **kwargs) -> None:
+    """Write DataFrame to CSV atomically using temp file + rename pattern.
+
+    This ensures that the target file is never in a partially-written state.
+    If the write fails, the original file is preserved.
+    """
+    # Get directory of target file
+    dir_path = os.path.dirname(filepath) or "."
+
+    # Create temp file in same directory (ensures same filesystem for atomic rename)
+    fd, temp_path = tempfile.mkstemp(suffix=".tmp", dir=dir_path)
+    try:
+        os.close(fd)  # Close the file descriptor, we'll write via pandas
+        df.to_csv(temp_path, **kwargs)
+        # Atomic replace (on Windows, need to remove target first if exists)
+        if os.path.exists(filepath):
+            os.replace(temp_path, filepath)
+        else:
+            os.rename(temp_path, filepath)
+    except Exception:
+        # Clean up temp file on failure
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        raise
 
 
 def create_session():
@@ -216,8 +247,12 @@ def main():
             )
         else:
             fechados_atualizado = closed_df.copy()
-        fechados_atualizado.to_csv(
-            fechados_file, sep=";", encoding="utf-8-sig", index=False
+        atomic_csv_write(
+            fechados_atualizado,
+            fechados_file,
+            sep=";",
+            encoding="utf-8-sig",
+            index=False,
         )
         console.print(
             f"[green]Updated {fechados_file} with all closed chamados before {oldest_open.strftime('%d/%m/%Y')}"
@@ -229,8 +264,8 @@ def main():
             pd.to_datetime(all_df["Data"], dayfirst=True, errors="coerce")
             >= oldest_open
         ]
-        chamados_atuais.to_csv(
-            chamados_file, sep=";", encoding="utf-8-sig", index=False
+        atomic_csv_write(
+            chamados_atuais, chamados_file, sep=";", encoding="utf-8-sig", index=False
         )
         console.print(f"[bold green]Saved merged base to {chamados_file}")
 

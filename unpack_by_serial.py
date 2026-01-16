@@ -104,7 +104,11 @@ if os.path.exists(OUTPUT_CSV):
             try:
                 out_df = pd.read_csv(OUTPUT_CSV, sep=";", dtype=str, encoding=enc)
                 break
-            except:
+            except Exception as e:
+                print(
+                    Fore.YELLOW
+                    + f"Failed to read {OUTPUT_CSV} with encoding {enc}: {e}"
+                )
                 continue
 
         if out_df is None:

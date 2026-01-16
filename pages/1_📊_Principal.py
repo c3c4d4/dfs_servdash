@@ -1,9 +1,7 @@
 import streamlit as st
 import pandas as pd
-import os
 from datetime import datetime, timedelta
 import base64
-import numpy as np
 
 from data_loader import (
     carregar_dados_merged,
@@ -242,7 +240,10 @@ def main():
     ]
 
     # Search functionality
-    search = st.text_input("PESQUISAR EM TODOS OS CAMPOS")
+    st.sidebar.markdown("---")
+    search = st.sidebar.text_input(
+        "🔍 Pesquisar Global", placeholder="Ex: Número série, cliente..."
+    )
 
     # Get all tags for filtering
     todas_tags = sorted(set(tag for tags in df["TAGS"] for tag in tags))
@@ -287,87 +288,115 @@ def main():
                 if pd.isna(fim):
                     fim = hoje
                 return str((fim - inicio).days)
-            except:
+            except Exception:
                 return ""
 
         df_display.loc[mask_aging_vazio, "AGING"] = df_display.loc[
             mask_aging_vazio
         ].apply(calc_aging, axis=1)
 
-    # Display KPIs
-    kpi_section(df_filtrado)
+    # --- TABS LAYOUT ---
+    st.title("📊 Painel Principal")
 
-    # Display filtered data
-    st.dataframe(
-        df_display,
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "TAGS": st.column_config.ListColumn("Tags", width="medium"),
-            "CHAMADO": st.column_config.TextColumn("Chamado", width="small"),
-            "CHASSI": st.column_config.TextColumn("Chassi", width="medium"),
-            "SÉRIE": st.column_config.TextColumn("Série", width="small"),
-            "MODELO": st.column_config.TextColumn("Modelo", width="small"),
-            "ORDEM": st.column_config.TextColumn("Ordem", width="small"),
-            "COD_BOMBA": st.column_config.TextColumn("Cód. Bomba", width="small"),
-            "RTM": st.column_config.TextColumn("RTM", width="small"),
-            "ESPECIALISTA": st.column_config.TextColumn("Especialista", width="medium"),
-            "PROPRIETÁRIO": st.column_config.TextColumn("Proprietário", width="medium"),
-            "MANTENEDOR": st.column_config.TextColumn("Mantenedor", width="medium"),
-            "TIPO": st.column_config.TextColumn("Tipo", width="medium"),
-            "SERVIÇO": st.column_config.TextColumn("Serviço", width="medium"),
-            "PROBLEMA": st.column_config.TextColumn("Problema", width="large"),
-            "RESOLUÇÃO": st.column_config.TextColumn("Resolução", width="large"),
-            "CLIENTE": st.column_config.TextColumn("Cliente", width="medium"),
-            "INÍCIO": st.column_config.DateColumn(
-                "Início", format="DD/MM/YYYY", width="small"
-            ),
-            "FIM": st.column_config.DateColumn(
-                "Fim", format="DD/MM/YYYY", width="small"
-            ),
-            "SUMÁRIO": st.column_config.TextColumn("Sumário", width="large"),
-            "AGING": st.column_config.NumberColumn("Aging", format="%d", width="small"),
-            "FIM_GARANTIA": st.column_config.TextColumn("Fim Garantia", width="small"),
-            "GARANTIA": st.column_config.TextColumn("Garantia", width="small"),
-            "STATUS": st.column_config.TextColumn("Status", width="small"),
-        },
+    tab_overview, tab_data, tab_charts = st.tabs(
+        ["📈 Visão Geral", "📋 Dados Detalhados", "📊 Análise Gráfica"]
     )
 
-    # Charts section
-    st.header("📊 Análises e Gráficos")
+    # --- TAB 1: OVERVIEW ---
+    with tab_overview:
+        st.subheader("Indicadores Principais")
+        # Display KPIs
+        kpi_section(df_filtrado)
 
-    # Tag distribution
-    if df_filtrado["TAGS"].any():
-        tags_contagem = pd.Series(
-            [tag for tags in df_filtrado["TAGS"] for tag in tags]
-        ).value_counts()
-        st.plotly_chart(vz.bar_chart_tags(tags_contagem), use_container_width=True)
+        st.markdown("---")
 
-    # Aging distribution
-    st.plotly_chart(vz.pie_chart_aging(df_filtrado), use_container_width=True)
+        # Top-level charts for overview
+        col1, col2 = st.columns(2)
+        with col1:
+            st.plotly_chart(vz.pie_chart_aging(df_filtrado), use_container_width=True)
+        with col2:
+            if df_filtrado["TAGS"].any():
+                tags_contagem = pd.Series(
+                    [tag for tags in df_filtrado["TAGS"] for tag in tags]
+                ).value_counts()
+                st.plotly_chart(
+                    vz.bar_chart_tags(tags_contagem), use_container_width=True
+                )
 
-    # Performance charts
-    col1, col2 = st.columns(2)
+    # --- TAB 2: DATA ---
+    with tab_data:
+        st.subheader(f"Listagem de Chamados ({len(df_display)})")
 
-    with col1:
-        st.plotly_chart(
-            vz.bar_chart_aging_proprietario(df_filtrado), use_container_width=True
+        # Display filtered data
+        st.dataframe(
+            df_display,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "TAGS": st.column_config.ListColumn("Tags", width="medium"),
+                "CHAMADO": st.column_config.TextColumn("Chamado", width="small"),
+                "CHASSI": st.column_config.TextColumn("Chassi", width="medium"),
+                "SÉRIE": st.column_config.TextColumn("Série", width="small"),
+                "MODELO": st.column_config.TextColumn("Modelo", width="small"),
+                "ORDEM": st.column_config.TextColumn("Ordem", width="small"),
+                "COD_BOMBA": st.column_config.TextColumn("Cód. Bomba", width="small"),
+                "RTM": st.column_config.TextColumn("RTM", width="small"),
+                "ESPECIALISTA": st.column_config.TextColumn(
+                    "Especialista", width="medium"
+                ),
+                "PROPRIETÁRIO": st.column_config.TextColumn(
+                    "Proprietário", width="medium"
+                ),
+                "MANTENEDOR": st.column_config.TextColumn("Mantenedor", width="medium"),
+                "TIPO": st.column_config.TextColumn("Tipo", width="medium"),
+                "SERVIÇO": st.column_config.TextColumn("Serviço", width="medium"),
+                "PROBLEMA": st.column_config.TextColumn("Problema", width="large"),
+                "RESOLUÇÃO": st.column_config.TextColumn("Resolução", width="large"),
+                "CLIENTE": st.column_config.TextColumn("Cliente", width="medium"),
+                "INÍCIO": st.column_config.DateColumn(
+                    "Início", format="DD/MM/YYYY", width="small"
+                ),
+                "FIM": st.column_config.DateColumn(
+                    "Fim", format="DD/MM/YYYY", width="small"
+                ),
+                "SUMÁRIO": st.column_config.TextColumn("Sumário", width="large"),
+                "AGING": st.column_config.NumberColumn(
+                    "Aging", format="%d", width="small"
+                ),
+                "FIM_GARANTIA": st.column_config.TextColumn(
+                    "Fim Garantia", width="small"
+                ),
+                "GARANTIA": st.column_config.TextColumn("Garantia", width="small"),
+                "STATUS": st.column_config.TextColumn("Status", width="small"),
+            },
         )
 
-    with col2:
+    # --- TAB 3: CHARTS ---
+    with tab_charts:
+        st.subheader("Análise Detalhada de Performance")
+
+        # Performance charts
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.plotly_chart(
+                vz.bar_chart_aging_proprietario(df_filtrado), use_container_width=True
+            )
+
+        with col2:
+            st.plotly_chart(
+                vz.bar_chart_aging_especialista(df_filtrado), use_container_width=True
+            )
+
+        # Mantenedor performance
         st.plotly_chart(
-            vz.bar_chart_aging_especialista(df_filtrado), use_container_width=True
+            vz.bar_chart_aging_mantenedor(df_filtrado), use_container_width=True
         )
 
-    # Mantenedor performance
-    st.plotly_chart(
-        vz.bar_chart_aging_mantenedor(df_filtrado), use_container_width=True
-    )
-
-    # Time series analysis
-    st.plotly_chart(
-        vz.line_chart_aging(df_filtrado, "ESPECIALISTA"), use_container_width=True
-    )
+        # Time series analysis
+        st.plotly_chart(
+            vz.line_chart_aging(df_filtrado, "ESPECIALISTA"), use_container_width=True
+        )
 
 
 if __name__ == "__main__":

@@ -1,7 +1,6 @@
 from datetime import timedelta
 import streamlit as st
 import pandas as pd
-import json
 import plotly.express as px
 from data_loader import (
     carregar_dados_merged,
@@ -91,6 +90,7 @@ def preprocess_o2c_data(o2c_df: pd.DataFrame):
     return df
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
 def precompute_chamados_dicts(chamados_df: pd.DataFrame):
     """Precompute chamados dictionaries for fast filtering."""
     df = chamados_df.copy()

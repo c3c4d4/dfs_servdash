@@ -23,13 +23,14 @@ import sys
 import time
 import subprocess
 import shutil
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 # Configuration
 MAX_RETRIES = 3
 RETRY_DELAY = 60  # seconds between retries
 LOG_DIR = "logs"
+BACKUP_RETENTION_DAYS = 7  # Delete backups older than this
 SCRIPT_DIR = Path(__file__).parent.absolute()
 
 # Scripts to run in order
@@ -97,6 +98,32 @@ def create_backup(files_to_backup):
             backed_up.append(file_name)
 
     return backup_dir, backed_up
+
+
+def rotate_backups():
+    """Delete backup directories older than BACKUP_RETENTION_DAYS."""
+    backup_root = SCRIPT_DIR / "backups"
+    if not backup_root.exists():
+        return 0
+
+    deleted_count = 0
+    cutoff_date = datetime.now() - timedelta(days=BACKUP_RETENTION_DAYS)
+
+    for backup_dir in backup_root.iterdir():
+        if not backup_dir.is_dir():
+            continue
+        # Parse directory name (format: YYYYMMDD_HHMMSS)
+        try:
+            dir_date = datetime.strptime(backup_dir.name, "%Y%m%d_%H%M%S")
+            if dir_date < cutoff_date:
+                shutil.rmtree(backup_dir)
+                deleted_count += 1
+                print(f"  Deleted old backup: {backup_dir.name}")
+        except ValueError:
+            # Skip directories that don't match the expected format
+            continue
+
+    return deleted_count
 
 
 def run_script(script_info, log_file):
@@ -205,6 +232,11 @@ def main():
     backup_dir, backed_up = create_backup(files_to_backup)
     print(f"Backup directory: {backup_dir}")
     print(f"Files backed up: {', '.join(backed_up) if backed_up else 'None'}")
+
+    # Rotate old backups
+    print(f"\n--- Rotating Backups (keeping {BACKUP_RETENTION_DAYS} days) ---")
+    deleted = rotate_backups()
+    print(f"Deleted {deleted} old backup(s)")
 
     # Track results
     results = {}
