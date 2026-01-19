@@ -22,7 +22,7 @@ BACKUP_CSV = "o2c_unpacked_backup.csv"
 BOM_URL = (
     "https://production.wayne.com/asp/BomLookup.asp?Function=BOM&PartNumber={}&Org=6705"
 )
-MAX_WORKERS = 40
+MAX_WORKERS = 20
 BLOCK_STATUS_CODES = {429, 403, 503}
 BLOCK_PAUSE = 60
 MAX_RETRIES = 3
@@ -103,8 +103,8 @@ def normalize_garantia_to_days(garantia_text):
     for prefix in ["GARANTIA", "WARRANTY", "-", ":"]:
         garantia_upper = garantia_upper.replace(prefix, "").strip()
 
-    # Tenta match direto
-    for pattern, days in GARANTIA_TEXT_TO_DAYS.items():
+    # Tenta match direto (sorted by length descending to avoid substring matches like "6 MESES" in "36 MESES")
+    for pattern, days in sorted(GARANTIA_TEXT_TO_DAYS.items(), key=lambda x: len(x[0]), reverse=True):
         if pattern in garantia_upper:
             return str(days)
 
