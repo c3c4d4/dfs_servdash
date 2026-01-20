@@ -3,7 +3,14 @@
     "allow": [
       "Bash(python:*)",
       "Bash(py:*)",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "WebFetch(domain:production.wayne.com)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nFix warranty pattern matching bug for 36-month warranties\n\nThe normalize_garantia_to_days\\(\\) function was incorrectly matching\n\"6 MESES\" before \"36 MESES\" because it''s a substring. Now sorts\npatterns by length \\(longest first\\) to ensure correct matching.\n\nThis fixes items like W7HX1-4019454 that were showing 183 days\n\\(6 months\\) instead of 1095 days \\(36 months\\).\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)",
+      "Bash(findstr:*)"
     ],
     "defaultMode": "acceptEdits"
   }
