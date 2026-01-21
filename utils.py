@@ -5,6 +5,8 @@ from typing import Optional, List, Set
 import streamlit as st
 from functools import lru_cache
 
+from constants import MODEL_MAPPING
+
 
 @lru_cache(maxsize=128)
 def extrair_estado(endereco: str) -> Optional[str]:
@@ -151,37 +153,8 @@ def extrair_modelo_vectorized(serie_series: pd.Series) -> pd.Series:
     """Extract model from series column based on prefix before '-'.
 
     Optimized version using vectorized string operations and .map().
+    Uses MODEL_MAPPING from constants.py for maintainability.
     """
-    # Model mapping based on prefix before '-'
-    model_mapping = {
-        "W7E123": "E123",
-        "W7HX2": "HELIX",
-        "W7HXH": "HELIX",
-        "3G2209P": "3G",
-        "W7HX6": "HELIX",
-        "W7HX1": "HELIX",
-        "3G2203P": "3G",
-        "3G3389P": "3G",
-        "3G3390P": "3G",
-        "3G2201P": "3G",
-        "3G3394P": "3G",
-        "3G3490P": "3G",
-        "E123LARLA3": "E123",
-        "3G2204P": "3G",
-        "3G2202P": "3G",
-        "3G3384P": "3G",
-        "3G2207P": "3G",
-        "3G3494P": "3G",
-        "3G2221P": "3G",
-        "W7GCEN": "CENTURY",
-        "W7GVIS": "VISTA",
-        # Legacy mappings (keeping for compatibility)
-        "W9000001": "HELIX",
-        "7502A": "7502A",
-        "N3G2201PO": "3G",
-        "3GV3490P": "3G",
-    }
-
     # Vectorized: Extract prefix before '-' or use the whole string if no '-'
     # Handle NaN/None values by filling with empty string first
     clean_series = serie_series.fillna("").astype(str)
@@ -190,7 +163,7 @@ def extrair_modelo_vectorized(serie_series: pd.Series) -> pd.Series:
     prefixes = clean_series.str.split("-").str[0].str.strip().str.upper()
 
     # Map prefixes to models using pandas Series.map()
-    result = prefixes.map(model_mapping).fillna("OUTROS")
+    result = prefixes.map(MODEL_MAPPING).fillna("OUTROS")
 
     return result
 

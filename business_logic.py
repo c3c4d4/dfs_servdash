@@ -9,16 +9,7 @@ import streamlit as st
 from datetime import timedelta
 from typing import Dict, Set, List
 
-# Configuration constants
-GARANTIA_PERIODS = {
-    "6_MESES": 183,
-    "12_MESES": 365,
-    "18_MESES": 548,
-    "24_MESES": 730,
-    "36_MESES": 1095,
-}
-
-GARANTIA_ELETRONICA_DAYS = 365
+from constants import GARANTIA_PERIODS, GARANTIA_ELETRONICA_DAYS
 
 
 def get_ss_for_chassis(
@@ -312,9 +303,10 @@ def calculate_rtm_analysis_by_year(
     chamados_validos = chamados_clean[
         ~chamados_clean["SUMÁRIO"].str.contains(r"\[STB\]", case=False, na=False)
     ]
-    chassis_com_chamado = set(
-        chamados_validos[~chamados_validos["SERVIÇO"].str.contains("PARTIDA INICIAL", na=False)]["CHASSI"].dropna().astype(str)
-    )
+    chamados_sem_partida = chamados_validos[
+        ~chamados_validos["SERVIÇO"].str.contains("PARTIDA INICIAL", na=False)
+    ]
+    chassis_com_chamado = set(chamados_sem_partida["CHASSI"].dropna().astype(str))
 
     # Chassis with RTM errors (convert SS to string for matching)
     erros_rtm_ss = set(erros_rtm_df["SS"].astype(str).str.strip())
@@ -324,6 +316,7 @@ def calculate_rtm_analysis_by_year(
     results = []
 
     for ano in anos:
+        # Drop duplicates within year to count unique chassis per year
         df_ano = df[df["ANO_NF"] == ano].drop_duplicates(subset=["NUM_SERIAL"])
         chassis_ano = set(df_ano["NUM_SERIAL"].dropna().astype(str))
         total = len(chassis_ano)
@@ -342,15 +335,21 @@ def calculate_rtm_analysis_by_year(
         com_chamado = len(chassis_ano & chassis_com_chamado)
         pct_com_chamado = 100 * com_chamado / total
 
-        # % Chassis Under Warranty
-        df_ano_garantia = df_ano[df_ano["STATUS_GARANTIA"] == "DENTRO"]
-        pct_under_warranty = 100 * len(df_ano_garantia) / total
-
-        # % Chassis Under Electronic Warranty
-        # Calculate electronic warranty status
-        fim_garan_eletr = pd.to_datetime(df_ano["DT_NUM_NF"], errors="coerce") + timedelta(days=GARANTIA_ELETRONICA_DAYS)
+        # % Chassis Under Electronic Warranty (12 months = minimum warranty)
+        dt_nf_ano = pd.to_datetime(df_ano["DT_NUM_NF"], errors="coerce")
+        fim_garan_eletr = dt_nf_ano + timedelta(days=GARANTIA_ELETRONICA_DAYS)
         dentro_eletr = (fim_garan_eletr >= hoje).sum()
         pct_under_eletr_warranty = 100 * dentro_eletr / total
+
+        # % Chassis Under Warranty (uses STATUS_GARANTIA, but at minimum = electronic)
+        # If STATUS_GARANTIA is missing but unit is within electronic warranty,
+        # count as under warranty since minimum warranty is 12 months
+        status_dentro = df_ano["STATUS_GARANTIA"] == "DENTRO"
+        status_missing = df_ano["STATUS_GARANTIA"].isin(["", None]) | df_ano["STATUS_GARANTIA"].isna()
+        dentro_por_eletr = (fim_garan_eletr >= hoje)
+        # Under warranty if explicitly DENTRO or (missing status but within 12 months)
+        dentro_garantia = status_dentro | (status_missing & dentro_por_eletr)
+        pct_under_warranty = 100 * dentro_garantia.sum() / total
 
         # % Chassis Error RTM Ticket
         com_erro_rtm = len(chassis_ano & chassis_com_erro_rtm)
@@ -366,30 +365,44 @@ def calculate_rtm_analysis_by_year(
             "% Chassis Error RTM Ticket": pct_erro_rtm,
         })
 
-    # Add Total column
+    # Add Total row - sum of per-year Units Sales, percentages based on unique chassis
     if results:
+        # Sum of Units Sales from all years
+        total_units_sales = sum(r["Units Sales"] for r in results)
+
+        # For percentages, use unique chassis as denominator (installed base)
         df_total = df.drop_duplicates(subset=["NUM_SERIAL"])
         chassis_total = set(df_total["NUM_SERIAL"].dropna().astype(str))
-        total_all = len(chassis_total)
+        unique_chassis_count = len(chassis_total)
 
-        if total_all > 0:
+        if unique_chassis_count > 0:
             com_partida_total = len(chassis_total & partida_set)
             com_chamado_total = len(chassis_total & chassis_com_chamado)
             com_erro_rtm_total = len(chassis_total & chassis_com_erro_rtm)
 
-            dentro_garantia_total = len(df_total[df_total["STATUS_GARANTIA"] == "DENTRO"])
-
-            fim_garan_eletr_total = pd.to_datetime(df_total["DT_NUM_NF"], errors="coerce") + timedelta(days=GARANTIA_ELETRONICA_DAYS)
+            # Electronic warranty calculation (using deduplicated df_total)
+            dt_nf_total = pd.to_datetime(df_total["DT_NUM_NF"], errors="coerce")
+            fim_garan_eletr_total = dt_nf_total + timedelta(days=GARANTIA_ELETRONICA_DAYS)
             dentro_eletr_total = (fim_garan_eletr_total >= hoje).sum()
+
+            # General warranty - consistent with per-year logic
+            status_dentro_total = df_total["STATUS_GARANTIA"] == "DENTRO"
+            status_missing_total = (
+                df_total["STATUS_GARANTIA"].isin(["", None]) | df_total["STATUS_GARANTIA"].isna()
+            )
+            dentro_por_eletr_total = (fim_garan_eletr_total >= hoje)
+            dentro_garantia_total = (
+                status_dentro_total | (status_missing_total & dentro_por_eletr_total)
+            ).sum()
 
             results.append({
                 "Ano": "Total",
-                "Units Sales": total_all,
-                "Start up DFS": 100 * com_partida_total / total_all,
-                "% Chassis with tickets": 100 * com_chamado_total / total_all,
-                "% Chassis Under Warranty": 100 * dentro_garantia_total / total_all,
-                "% Chassis Under Electronic Warranty": 100 * dentro_eletr_total / total_all,
-                "% Chassis Error RTM Ticket": 100 * com_erro_rtm_total / total_all,
+                "Units Sales": total_units_sales,  # Sum of years
+                "Start up DFS": 100 * com_partida_total / unique_chassis_count,
+                "% Chassis with tickets": 100 * com_chamado_total / unique_chassis_count,
+                "% Chassis Under Warranty": 100 * dentro_garantia_total / unique_chassis_count,
+                "% Chassis Under Electronic Warranty": 100 * dentro_eletr_total / unique_chassis_count,
+                "% Chassis Error RTM Ticket": 100 * com_erro_rtm_total / unique_chassis_count,
             })
 
     return pd.DataFrame(results)

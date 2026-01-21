@@ -1,3 +1,4 @@
+import secrets
 import streamlit as st
 import os
 from dotenv import load_dotenv
@@ -10,7 +11,9 @@ def check_password() -> None:
     correct_password = os.getenv("APP_PASSWORD", "")
 
     def password_entered():
-        if st.session_state["password"] == correct_password:
+        # Use constant-time comparison to prevent timing attacks
+        entered = st.session_state["password"]
+        if secrets.compare_digest(entered.encode(), correct_password.encode()):
             st.session_state["authenticated"] = True
         else:
             st.session_state["authenticated"] = False

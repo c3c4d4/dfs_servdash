@@ -179,7 +179,7 @@ if considerar_stb:
 else:
     # Exclude STB calls - use precomputed valid counts
     chamados_considerados = chamados[
-        ~chamados["SUMÁRIO"].str.contains("\\[STB\\]", case=False, na=False)
+        ~chamados["SUMÁRIO"].str.contains(r"\[STB\]", case=False, na=False)
     ]
     chassi_counts_validos = chamados_considerados.groupby("CHASSI").size()
     chassi_com_chamado = set(
@@ -434,7 +434,7 @@ with tab_kpis:
                     fig_mapa = vz.choropleth_map_brazil(
                         filtered_filtros_map, estado_counts_filtrado
                     )
-                    st.plotly_chart(fig_mapa, use_container_width=True)
+                    st.plotly_chart(fig_mapa, width="stretch")
                 except Exception as e:
                     st.error(f"❌ Erro ao criar mapa: {str(e)}")
 
@@ -454,7 +454,7 @@ with tab_kpis:
                         height=500,
                         xaxis_tickangle=-45,
                     )
-                    st.plotly_chart(fig_bar, use_container_width=True)
+                    st.plotly_chart(fig_bar, width="stretch")
             else:
                 st.warning(
                     "⚠️ Nenhum dado válido encontrado para exibir no mapa após a filtragem."
@@ -480,7 +480,7 @@ with tab_kpis:
                         fig_mapa = vz.choropleth_map_brazil(
                             filtered_filtros_map, estado_counts_filtrado
                         )
-                        st.plotly_chart(fig_mapa, use_container_width=True)
+                        st.plotly_chart(fig_mapa, width="stretch")
                     except Exception as e:
                         st.error(f"❌ Erro ao criar mapa com ESTADO: {str(e)}")
     else:
@@ -634,7 +634,7 @@ with tab_tabela:
     # Display table
     st.dataframe(
         filtered_filtros_unique[display_columns],
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_config=column_config,
     )
@@ -689,7 +689,9 @@ with tab_rtm_analysis:
 
         # Transpose for better visualization (years as columns)
         df_new_transposed = df_new_display.set_index("Ano").T
-        st.dataframe(df_new_transposed, use_container_width=True)
+        # Convert all columns to string to avoid Arrow serialization issues
+        df_new_transposed = df_new_transposed.astype(str)
+        st.dataframe(df_new_transposed, width="stretch")
 
         # Summary metrics
         col1, col2, col3, col4 = st.columns(4)
@@ -715,15 +717,19 @@ with tab_rtm_analysis:
     if not df_old_rtm.empty:
         # Format the dataframe for display
         df_old_display = df_old_rtm.copy()
+        # Remove RTM Error column - not applicable for OLD RTM (always 0%)
+        if "% Chassis Error RTM Ticket" in df_old_display.columns:
+            df_old_display = df_old_display.drop(columns=["% Chassis Error RTM Ticket"])
         df_old_display["Start up DFS"] = df_old_display["Start up DFS"].apply(lambda x: f"{x:.1f}%")
         df_old_display["% Chassis with tickets"] = df_old_display["% Chassis with tickets"].apply(lambda x: f"{x:.1f}%")
         df_old_display["% Chassis Under Warranty"] = df_old_display["% Chassis Under Warranty"].apply(lambda x: f"{x:.1f}%")
         df_old_display["% Chassis Under Electronic Warranty"] = df_old_display["% Chassis Under Electronic Warranty"].apply(lambda x: f"{x:.1f}%")
-        df_old_display["% Chassis Error RTM Ticket"] = df_old_display["% Chassis Error RTM Ticket"].apply(lambda x: f"{x:.1f}%")
 
         # Transpose for better visualization (years as columns)
         df_old_transposed = df_old_display.set_index("Ano").T
-        st.dataframe(df_old_transposed, use_container_width=True)
+        # Convert all columns to string to avoid Arrow serialization issues
+        df_old_transposed = df_old_transposed.astype(str)
+        st.dataframe(df_old_transposed, width="stretch")
 
         # Summary metrics
         col1, col2, col3, col4 = st.columns(4)
@@ -812,7 +818,9 @@ with tab_rtm_analysis:
 
         # Transpose for better visualization
         df_comparison_transposed = df_comparison_display.set_index("Ano").T
-        st.dataframe(df_comparison_transposed, use_container_width=True)
+        # Convert all columns to string to avoid Arrow serialization issues
+        df_comparison_transposed = df_comparison_transposed.astype(str)
+        st.dataframe(df_comparison_transposed, width="stretch")
 
 
 # --- Funções auxiliares para detalhamento ---

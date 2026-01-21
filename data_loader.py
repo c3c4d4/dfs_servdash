@@ -1,11 +1,74 @@
 import pandas as pd
 import numpy as np
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, List
 import streamlit as st
 from functools import lru_cache
 import warnings
+import logging
 
 warnings.filterwarnings("ignore")
+
+# Configure logging for data validation
+logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# DATA VALIDATION LAYER
+# =============================================================================
+class DataValidationError(Exception):
+    """Exception raised when data validation fails."""
+
+    pass
+
+
+def validate_dataframe(
+    df: pd.DataFrame,
+    required_columns: List[str],
+    df_name: str = "DataFrame"
+) -> bool:
+    """
+    Validate that a DataFrame contains required columns.
+
+    Args:
+        df: DataFrame to validate
+        required_columns: List of column names that must be present
+        df_name: Name for error messages
+
+    Returns:
+        True if validation passes
+
+    Raises:
+        DataValidationError: If required columns are missing
+    """
+    if df is None or df.empty:
+        logger.warning(f"{df_name} is empty or None")
+        return True  # Allow empty dataframes, just warn
+
+    missing = [col for col in required_columns if col not in df.columns]
+    if missing:
+        error_msg = f"{df_name} missing required columns: {missing}"
+        logger.error(error_msg)
+        raise DataValidationError(error_msg)
+
+    return True
+
+
+def validate_chamados_df(df: pd.DataFrame) -> bool:
+    """Validate chamados DataFrame structure."""
+    required = ["SS", "Tarefa", "Status", "Chassi"]
+    return validate_dataframe(df, required, "Chamados")
+
+
+def validate_o2c_df(df: pd.DataFrame) -> bool:
+    """Validate O2C DataFrame structure."""
+    required = ["NUM_SERIAL", "GARANTIA"]
+    return validate_dataframe(df, required, "O2C")
+
+
+def validate_rtm_errors_df(df: pd.DataFrame) -> bool:
+    """Validate RTM errors DataFrame structure."""
+    required = ["SS"]
+    return validate_dataframe(df, required, "RTM Errors")
 
 
 # Optimized data loading with caching
@@ -335,7 +398,6 @@ def get_mapping_dicts() -> Tuple[Dict[str, str], Dict[str, str], Dict[str, str]]
         "MOURA, JAIMERSON - J C MOURA ME": "J C MOURA",
         "SANTOS, ABRAHAM - MANOEL GONZAGA DOS SANTOS": "MANOEL GONZAGA",
         "SILVA, RODRIGO - TECNO PUMP COMERCIO DE PECAS PBOMBAS COMBUSTIVEL LTDA - ME": "TECNO PUMP",
-        "SOARES, ALTEVIR - JUMPER MATERIAIS E SERVICOS PARA POSTOS DE COMBUSTIVEIS EIRELI ME": "JUMPER",
         "SALES, - UBERPOSTOS LOGISTICA E EQUIP": "UBERPOSTOS",
     }
 
@@ -403,7 +465,6 @@ def get_mapping_dicts() -> Tuple[Dict[str, str], Dict[str, str], Dict[str, str]]
         "MOURA, JAIMERSON - J C MOURA ME": "TBD",
         "SANTOS, ABRAHAM - MANOEL GONZAGA DOS SANTOS": "TBD",
         "SILVA, RODRIGO - TECNO PUMP COMERCIO DE PECAS PBOMBAS COMBUSTIVEL LTDA - ME": "TBD",
-        "SOARES, ALTEVIR - JUMPER MATERIAIS E SERVICOS PARA POSTOS DE COMBUSTIVEIS EIRELI ME": "LUCIANO",
         "SALES, - UBERPOSTOS LOGISTICA E EQUIP": "LUCAS",
     }
 

@@ -313,14 +313,14 @@ def main():
         # Top-level charts for overview
         col1, col2 = st.columns(2)
         with col1:
-            st.plotly_chart(vz.pie_chart_aging(df_filtrado), use_container_width=True)
+            st.plotly_chart(vz.pie_chart_aging(df_filtrado), width="stretch")
         with col2:
             if df_filtrado["TAGS"].any():
                 tags_contagem = pd.Series(
                     [tag for tags in df_filtrado["TAGS"] for tag in tags]
                 ).value_counts()
                 st.plotly_chart(
-                    vz.bar_chart_tags(tags_contagem), use_container_width=True
+                    vz.bar_chart_tags(tags_contagem), width="stretch"
                 )
 
     # --- TAB 2: DATA ---
@@ -330,7 +330,7 @@ def main():
         # Display filtered data
         st.dataframe(
             df_display,
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             column_config={
                 "TAGS": st.column_config.ListColumn("Tags", width="medium"),
@@ -380,22 +380,22 @@ def main():
 
         with col1:
             st.plotly_chart(
-                vz.bar_chart_aging_proprietario(df_filtrado), use_container_width=True
+                vz.bar_chart_aging_proprietario(df_filtrado), width="stretch"
             )
 
         with col2:
             st.plotly_chart(
-                vz.bar_chart_aging_especialista(df_filtrado), use_container_width=True
+                vz.bar_chart_aging_especialista(df_filtrado), width="stretch"
             )
 
         # Mantenedor performance
         st.plotly_chart(
-            vz.bar_chart_aging_mantenedor(df_filtrado), use_container_width=True
+            vz.bar_chart_aging_mantenedor(df_filtrado), width="stretch"
         )
 
         # Time series analysis
         st.plotly_chart(
-            vz.line_chart_aging(df_filtrado, "ESPECIALISTA"), use_container_width=True
+            vz.line_chart_aging(df_filtrado, "ESPECIALISTA"), width="stretch"
         )
 
 

@@ -141,7 +141,7 @@ def display_dataframe_info(df: pd.DataFrame, title: str = "DataFrame Info"):
     # Show data types
     st.write("**Data Types:**")
     dtype_df = pd.DataFrame(list(info['dtypes'].items()), columns=['Column', 'Type'])
-    st.dataframe(dtype_df, use_container_width=True, hide_index=True)
+    st.dataframe(dtype_df, width="stretch", hide_index=True)
 
 def optimize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     """Apply optimizations to DataFrame."""
@@ -211,7 +211,7 @@ def show_performance_dashboard():
         go.Bar(name='Memory Usage', x=['RSS', 'VMS'], y=[memory_usage['rss_mb'], memory_usage['vms_mb']])
     ])
     fig.update_layout(title="Memory Usage (MB)", height=300)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
     
     # Performance tips
     st.subheader("💡 Performance Tips")

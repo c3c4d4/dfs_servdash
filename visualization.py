@@ -1,3 +1,5 @@
+import json
+
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
@@ -40,10 +42,10 @@ def bar_chart_aging(df: pd.DataFrame, campo: str) -> Any:
     """Returns a bar chart of mean aging for the specified field with optimizations."""
     # Optimize aging calculation
     df_clean = df.copy()
-    df_clean["Aging"] = pd.to_numeric(df_clean["Aging"], errors="coerce")
+    df_clean["AGING"] = pd.to_numeric(df_clean["AGING"], errors="coerce")
 
     # Group and calculate mean aging
-    aging_medio = df_clean.groupby(campo)["Aging"].mean().sort_values(ascending=False)
+    aging_medio = df_clean.groupby(campo)["AGING"].mean().sort_values(ascending=False)
 
     # Limit to top 20 for better performance
     if len(aging_medio) > 20:
@@ -138,9 +140,9 @@ def line_chart_aging(df: pd.DataFrame, campo: str) -> Any:
     """Returns a line chart of mean aging by month for the specified field with optimizations."""
     df_clean = df.copy()
 
-    # Handle both uppercase and lowercase column names
-    date_col = "DATA" if "DATA" in df_clean.columns else "Data"
-    aging_col = "AGING" if "AGING" in df_clean.columns else "Aging"
+    # Standardized to uppercase column names
+    date_col = "DATA"
+    aging_col = "AGING"
 
     df_clean[date_col] = pd.to_datetime(
         df_clean[date_col], dayfirst=True, errors="coerce"
@@ -157,7 +159,7 @@ def line_chart_aging(df: pd.DataFrame, campo: str) -> Any:
         top_categories = aging_por_campo[campo].value_counts().head(10).index
         aging_por_campo = aging_por_campo[aging_por_campo[campo].isin(top_categories)]
 
-    # Rename column for chart compatibility
+    # Rename column for chart display
     aging_por_campo = aging_por_campo.rename(columns={aging_col: "Aging"})
 
     fig = px.line(
@@ -314,8 +316,6 @@ def choropleth_map_brazil(df: pd.DataFrame, estado_counts: pd.DataFrame) -> Any:
     try:
         # Try to load GeoJSON data
         with open("brazil_states.geojson", "r", encoding="utf-8") as f:
-            import json
-
             brazil_states = json.load(f)
 
         # Calculate total and percentages
