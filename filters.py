@@ -129,18 +129,31 @@ def sidebar_filters(
     }
 
 
+def _convert_to_hashable(selecoes: Dict[str, List[str]]) -> tuple:
+    """Convert dict of lists to hashable tuple of tuples for caching."""
+    return tuple(sorted((k, tuple(sorted(v))) for k, v in selecoes.items()))
+
+
 @st.cache_data(ttl=900, show_spinner=False)
-def aplicar_filtros(
+def _aplicar_filtros_cached(
     df: pd.DataFrame,
-    tags_selecionadas: List[str],
-    selecoes: Dict[str, List[str]],
-    termo_pesquisa: str = "",
-    status_selecionado: str = "GERAL",
-    data_inicio=None,
-    data_fim=None,
+    tags_selecionadas_tuple: tuple,
+    selecoes_tuple: tuple,
+    termo_pesquisa: str,
+    status_selecionado: str,
+    data_inicio_str: Optional[str],
+    data_fim_str: Optional[str],
 ) -> pd.DataFrame:
-    """Aplica os filtros selecionados ao DataFrame com otimizações."""
+    """Internal cached filter function with hashable parameters."""
     df_filtrado = df.copy()
+
+    # Convert back from hashable types
+    tags_selecionadas = list(tags_selecionadas_tuple)
+    selecoes = {k: list(v) for k, v in selecoes_tuple}
+
+    # Parse dates back from strings
+    data_inicio = pd.to_datetime(data_inicio_str) if data_inicio_str else None
+    data_fim = pd.to_datetime(data_fim_str) if data_fim_str else None
 
     # Filtro de tags (exatamente as selecionadas)
     if tags_selecionadas:
@@ -163,28 +176,57 @@ def aplicar_filtros(
     if data_inicio:
         df_filtrado = df_filtrado[
             pd.to_datetime(df_filtrado["INÍCIO"], dayfirst=True, errors="coerce")
-            >= pd.to_datetime(data_inicio)
+            >= data_inicio
         ]
     if data_fim:
         df_filtrado = df_filtrado[
             pd.to_datetime(df_filtrado["FIM"], dayfirst=True, errors="coerce")
-            <= pd.to_datetime(data_fim)
+            <= data_fim
         ]
 
     # Filtro de texto - otimizado
     if termo_pesquisa:
         # Use vectorized string operations for better performance
-        mask = pd.DataFrame(
-            [
-                df_filtrado[col]
-                .astype(str)
-                .str.contains(termo_pesquisa, case=False, na=False)
-                for col in df_filtrado.columns
-            ]
-        ).any()
+        # Create boolean mask for each column, then check if any column matches per row
+        mask = df_filtrado.astype(str).apply(
+            lambda col: col.str.contains(termo_pesquisa, case=False, na=False)
+        ).any(axis=1)
         df_filtrado = df_filtrado[mask]
 
     return df_filtrado
+
+
+def aplicar_filtros(
+    df: pd.DataFrame,
+    tags_selecionadas: List[str],
+    selecoes: Dict[str, List[str]],
+    termo_pesquisa: str = "",
+    status_selecionado: str = "GERAL",
+    data_inicio=None,
+    data_fim=None,
+) -> pd.DataFrame:
+    """Aplica os filtros selecionados ao DataFrame com otimizações.
+
+    Wrapper function that converts mutable parameters to hashable types
+    for proper cache key generation.
+    """
+    # Convert mutable types to hashable for caching
+    tags_tuple = tuple(sorted(tags_selecionadas)) if tags_selecionadas else ()
+    selecoes_tuple = _convert_to_hashable(selecoes) if selecoes else ()
+
+    # Convert dates to string for hashable cache key
+    data_inicio_str = str(data_inicio) if data_inicio else None
+    data_fim_str = str(data_fim) if data_fim else None
+
+    return _aplicar_filtros_cached(
+        df,
+        tags_tuple,
+        selecoes_tuple,
+        termo_pesquisa,
+        status_selecionado,
+        data_inicio_str,
+        data_fim_str,
+    )
 
 
 @st.cache_data(ttl=1800, show_spinner=False)

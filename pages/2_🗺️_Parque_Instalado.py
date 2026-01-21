@@ -109,7 +109,7 @@ def precompute_chamados_dicts(chamados_df: pd.DataFrame):
         df["SUMÁRIO"] = df["SUMÁRIO"].fillna("")
         # Exclude calls with [STB] in summary
         df_valid_chamados = df[
-            ~df["SUMÁRIO"].str.contains("\\[STB\\]", case=False, na=False)
+            ~df["SUMÁRIO"].str.contains(r"\[STB\]", case=False, na=False)
         ]
     else:
         df_valid_chamados = df
@@ -299,7 +299,7 @@ def prepare_download_data(df: pd.DataFrame):
 
 # --- KPIs ---
 st.title("🗺️ Parque Instalado - Análise por Estado")
-tab_kpis, tab_tabela = st.tabs(["📌 KPIs", "📋 Parque Instalado"])
+tab_kpis, tab_tabela, tab_rtm_analysis = st.tabs(["📌 KPIs", "📋 Parque Instalado", "📊 Análise RTM"])
 
 with tab_kpis:
     # Primeira linha de KPIs
@@ -648,6 +648,172 @@ with tab_tabela:
         file_name=f"parque_instalado_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
         mime="text/csv",
     )
+
+with tab_rtm_analysis:
+    st.header("📊 Análise Comparativa RTM")
+    st.caption("Visão geral comparativa entre bombas NEW RTM (com RTM) e OLD RTM (sem RTM), independente dos filtros aplicados.")
+
+    # Load raw data for RTM analysis (ignoring sidebar filters)
+    o2c_raw = carregar_o2c()
+    o2c_processed = process_o2c_data(o2c_raw.copy())
+
+    # Calculate RTM analysis for NEW RTM (RTM: SIM)
+    df_new_rtm = bl.calculate_rtm_analysis_by_year(
+        o2c_processed, chamados, erros_rtm, "SIM"
+    )
+    summary_new_rtm = bl.get_rtm_summary_metrics(o2c_processed, chamados, "SIM")
+
+    # Calculate RTM analysis for OLD RTM (RTM: NAO - without accent in data)
+    df_old_rtm = bl.calculate_rtm_analysis_by_year(
+        o2c_processed, chamados, erros_rtm, "NAO"
+    )
+    summary_old_rtm = bl.get_rtm_summary_metrics(o2c_processed, chamados, "NAO")
+
+    # Initialize comparison variables
+    corrective_idx_new = 0.0
+    startup_idx_new = 0.0
+    corrective_idx_old = 0.0
+    startup_idx_old = 0.0
+
+    # --- NEW RTM Section ---
+    st.subheader("🆕 NEW RTM")
+
+    if not df_new_rtm.empty:
+        # Format the dataframe for display
+        df_new_display = df_new_rtm.copy()
+        df_new_display["Start up DFS"] = df_new_display["Start up DFS"].apply(lambda x: f"{x:.1f}%")
+        df_new_display["% Chassis with tickets"] = df_new_display["% Chassis with tickets"].apply(lambda x: f"{x:.1f}%")
+        df_new_display["% Chassis Under Warranty"] = df_new_display["% Chassis Under Warranty"].apply(lambda x: f"{x:.1f}%")
+        df_new_display["% Chassis Under Electronic Warranty"] = df_new_display["% Chassis Under Electronic Warranty"].apply(lambda x: f"{x:.1f}%")
+        df_new_display["% Chassis Error RTM Ticket"] = df_new_display["% Chassis Error RTM Ticket"].apply(lambda x: f"{x:.1f}%")
+
+        # Transpose for better visualization (years as columns)
+        df_new_transposed = df_new_display.set_index("Ano").T
+        st.dataframe(df_new_transposed, use_container_width=True)
+
+        # Summary metrics
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Total Units Sold", f"{summary_new_rtm['total_units']:,}")
+        col2.metric("Installed Base (known by DFS)", f"{summary_new_rtm['installed_base_known']:,}")
+        col3.metric("Chassis Under Warranty (36m)", f"{summary_new_rtm['chassis_36m_warranty']:,}")
+        col4.metric("Chassis Under Electronic Warranty", f"{summary_new_rtm['chassis_under_electronic_warranty']:,}")
+
+        # Comparison insights
+        if len(df_new_rtm) > 1:
+            total_row = df_new_rtm[df_new_rtm["Ano"] == "Total"]
+            if not total_row.empty:
+                corrective_idx_new = total_row["% Chassis with tickets"].values[0]
+                startup_idx_new = total_row["Start up DFS"].values[0]
+    else:
+        st.warning("Sem dados de NEW RTM disponíveis.")
+
+    st.divider()
+
+    # --- OLD RTM Section ---
+    st.subheader("📦 OLD RTM")
+
+    if not df_old_rtm.empty:
+        # Format the dataframe for display
+        df_old_display = df_old_rtm.copy()
+        df_old_display["Start up DFS"] = df_old_display["Start up DFS"].apply(lambda x: f"{x:.1f}%")
+        df_old_display["% Chassis with tickets"] = df_old_display["% Chassis with tickets"].apply(lambda x: f"{x:.1f}%")
+        df_old_display["% Chassis Under Warranty"] = df_old_display["% Chassis Under Warranty"].apply(lambda x: f"{x:.1f}%")
+        df_old_display["% Chassis Under Electronic Warranty"] = df_old_display["% Chassis Under Electronic Warranty"].apply(lambda x: f"{x:.1f}%")
+        df_old_display["% Chassis Error RTM Ticket"] = df_old_display["% Chassis Error RTM Ticket"].apply(lambda x: f"{x:.1f}%")
+
+        # Transpose for better visualization (years as columns)
+        df_old_transposed = df_old_display.set_index("Ano").T
+        st.dataframe(df_old_transposed, use_container_width=True)
+
+        # Summary metrics
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Total Units Sold", f"{summary_old_rtm['total_units']:,}")
+        col2.metric("Installed Base (known by DFS)", f"{summary_old_rtm['installed_base_known']:,}")
+        col3.metric("Chassis Under Warranty (36m)", f"{summary_old_rtm['chassis_36m_warranty']:,}")
+        col4.metric("Chassis Under Electronic Warranty", f"{summary_old_rtm['chassis_under_electronic_warranty']:,}")
+
+        # Get corrective index for comparison
+        if len(df_old_rtm) > 1:
+            total_row_old = df_old_rtm[df_old_rtm["Ano"] == "Total"]
+            if not total_row_old.empty:
+                corrective_idx_old = total_row_old["% Chassis with tickets"].values[0]
+                startup_idx_old = total_row_old["Start up DFS"].values[0]
+    else:
+        st.warning("Sem dados de OLD RTM disponíveis.")
+
+    st.divider()
+
+    # --- Comparison Insights ---
+    st.subheader("📈 Comparativo NEW RTM vs OLD RTM")
+
+    if not df_new_rtm.empty and not df_old_rtm.empty:
+        # Build comparison table by year
+        # Get all years from both dataframes (excluding "Total")
+        new_rtm_years = df_new_rtm[df_new_rtm["Ano"] != "Total"].set_index("Ano")
+        old_rtm_years = df_old_rtm[df_old_rtm["Ano"] != "Total"].set_index("Ano")
+
+        all_years = sorted(set(new_rtm_years.index.tolist() + old_rtm_years.index.tolist()))
+
+        # Build comparison data
+        comparison_data = []
+
+        for ano in all_years:
+            new_corr = new_rtm_years.loc[ano, "% Chassis with tickets"] if ano in new_rtm_years.index else 0
+            old_corr = old_rtm_years.loc[ano, "% Chassis with tickets"] if ano in old_rtm_years.index else 0
+            ratio_corr = new_corr / old_corr if old_corr > 0 else 0
+
+            new_startup = new_rtm_years.loc[ano, "Start up DFS"] if ano in new_rtm_years.index else 0
+            old_startup = old_rtm_years.loc[ano, "Start up DFS"] if ano in old_rtm_years.index else 0
+            ratio_startup = new_startup / old_startup if old_startup > 0 else 0
+
+            comparison_data.append({
+                "Ano": int(ano),
+                "Corretivo NEW RTM": new_corr,
+                "Corretivo OLD RTM": old_corr,
+                "Razão Corretivo": ratio_corr,
+                "Startup NEW RTM": new_startup,
+                "Startup OLD RTM": old_startup,
+                "Razão Startup": ratio_startup,
+            })
+
+        # Add Total row
+        new_total = df_new_rtm[df_new_rtm["Ano"] == "Total"]
+        old_total = df_old_rtm[df_old_rtm["Ano"] == "Total"]
+
+        if not new_total.empty and not old_total.empty:
+            new_corr_total = new_total["% Chassis with tickets"].values[0]
+            old_corr_total = old_total["% Chassis with tickets"].values[0]
+            ratio_corr_total = new_corr_total / old_corr_total if old_corr_total > 0 else 0
+
+            new_startup_total = new_total["Start up DFS"].values[0]
+            old_startup_total = old_total["Start up DFS"].values[0]
+            ratio_startup_total = new_startup_total / old_startup_total if old_startup_total > 0 else 0
+
+            comparison_data.append({
+                "Ano": "Total",
+                "Corretivo NEW RTM": new_corr_total,
+                "Corretivo OLD RTM": old_corr_total,
+                "Razão Corretivo": ratio_corr_total,
+                "Startup NEW RTM": new_startup_total,
+                "Startup OLD RTM": old_startup_total,
+                "Razão Startup": ratio_startup_total,
+            })
+
+        df_comparison = pd.DataFrame(comparison_data)
+
+        # Format percentages and ratios
+        df_comparison_display = df_comparison.copy()
+        df_comparison_display["Corretivo NEW RTM"] = df_comparison_display["Corretivo NEW RTM"].apply(lambda x: f"{x:.1f}%")
+        df_comparison_display["Corretivo OLD RTM"] = df_comparison_display["Corretivo OLD RTM"].apply(lambda x: f"{x:.1f}%")
+        df_comparison_display["Razão Corretivo"] = df_comparison_display["Razão Corretivo"].apply(lambda x: f"{x:.2f}x" if x > 0 else "-")
+        df_comparison_display["Startup NEW RTM"] = df_comparison_display["Startup NEW RTM"].apply(lambda x: f"{x:.1f}%")
+        df_comparison_display["Startup OLD RTM"] = df_comparison_display["Startup OLD RTM"].apply(lambda x: f"{x:.1f}%")
+        df_comparison_display["Razão Startup"] = df_comparison_display["Razão Startup"].apply(lambda x: f"{x:.2f}x" if x > 0 else "-")
+
+        # Transpose for better visualization
+        df_comparison_transposed = df_comparison_display.set_index("Ano").T
+        st.dataframe(df_comparison_transposed, use_container_width=True)
+
 
 # --- Funções auxiliares para detalhamento ---
 def partida_inicial_info(chassi):

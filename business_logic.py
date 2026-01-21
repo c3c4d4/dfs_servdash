@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 from datetime import timedelta
-from typing import Dict, Set, List, Tuple
+from typing import Dict, Set, List
 
 # Configuration constants
 GARANTIA_PERIODS = {
@@ -42,14 +42,24 @@ def calculate_qtd_chamados(
 def create_duracao_garantia_column(garantia_series: pd.Series) -> pd.Series:
     """Create user-friendly warranty duration labels."""
 
+    # Maximum reasonable warranty period (10 years = ~3650 days)
+    MAX_WARRANTY_DAYS = 3650
+
     def map_garantia(x):
         # Handle NaN/None values first
         if pd.isna(x) or x == 0 or x == "":
             return "Não informado"
-        # Convert to int for comparison
+        # Convert to int for comparison with bounds checking
         try:
-            val = int(float(x))
-        except (ValueError, TypeError):
+            float_val = float(x)
+            # Handle special float values (inf, -inf, nan)
+            if not np.isfinite(float_val):
+                return "Outros"
+            # Handle negative values and unreasonably large values
+            if float_val < 0 or float_val > MAX_WARRANTY_DAYS:
+                return "Outros"
+            val = int(float_val)
+        except (ValueError, TypeError, OverflowError):
             return "Outros"
 
         if val == GARANTIA_PERIODS["6_MESES"]:
@@ -256,3 +266,175 @@ def add_garantia_eletronica_columns(df: pd.DataFrame) -> pd.DataFrame:
     ]
 
     return df_copy
+
+
+def calculate_rtm_analysis_by_year(
+    o2c_df: pd.DataFrame,
+    chamados_df: pd.DataFrame,
+    erros_rtm_df: pd.DataFrame,
+    rtm_filter: str,  # "SIM" or "NAO"
+) -> pd.DataFrame:
+    """
+    Calculate RTM analysis metrics by year for comparative analysis.
+
+    Returns a DataFrame with metrics per year:
+    - Units Sales
+    - Start up DFS %
+    - % Chassis with tickets
+    - % Chassis Under Warranty
+    - % Chassis Under Electronic Warranty
+    - % Chassis Error RTM Ticket
+    """
+    hoje = pd.Timestamp.now().normalize()
+
+    # Filter by RTM
+    df = o2c_df[o2c_df["RTM"] == rtm_filter].copy()
+
+    if len(df) == 0:
+        return pd.DataFrame()
+
+    # Ensure ANO_NF exists
+    if "ANO_NF" not in df.columns:
+        df["ANO_NF"] = pd.to_datetime(df["DT_NUM_NF"], errors="coerce").dt.year
+
+    # Get unique years
+    anos = sorted(df["ANO_NF"].dropna().unique())
+
+    # Prepare chamados data
+    chamados_clean = chamados_df.copy()
+    chamados_clean.columns = chamados_clean.columns.str.strip().str.upper()
+
+    # Identify partida inicial and warranty calls (convert to string for matching)
+    partida_mask = chamados_clean["SERVIÇO"].str.contains("PARTIDA INICIAL", na=False)
+    partida_set = set(chamados_clean[partida_mask]["CHASSI"].dropna().astype(str))
+
+    # All chassis with any call (excluding STB)
+    chamados_validos = chamados_clean[
+        ~chamados_clean["SUMÁRIO"].str.contains(r"\[STB\]", case=False, na=False)
+    ]
+    chassis_com_chamado = set(
+        chamados_validos[~chamados_validos["SERVIÇO"].str.contains("PARTIDA INICIAL", na=False)]["CHASSI"].dropna().astype(str)
+    )
+
+    # Chassis with RTM errors (convert SS to string for matching)
+    erros_rtm_ss = set(erros_rtm_df["SS"].astype(str).str.strip())
+    chamados_com_erro = chamados_clean[chamados_clean["SS"].astype(str).str.strip().isin(erros_rtm_ss)]
+    chassis_com_erro_rtm = set(chamados_com_erro["CHASSI"].dropna().astype(str))
+
+    results = []
+
+    for ano in anos:
+        df_ano = df[df["ANO_NF"] == ano].drop_duplicates(subset=["NUM_SERIAL"])
+        chassis_ano = set(df_ano["NUM_SERIAL"].dropna().astype(str))
+        total = len(chassis_ano)
+
+        if total == 0:
+            continue
+
+        # Units Sales
+        units_sales = total
+
+        # Start up DFS %
+        com_partida_dfs = len(chassis_ano & partida_set)
+        pct_startup_dfs = 100 * com_partida_dfs / total
+
+        # % Chassis with tickets (excluding partida inicial)
+        com_chamado = len(chassis_ano & chassis_com_chamado)
+        pct_com_chamado = 100 * com_chamado / total
+
+        # % Chassis Under Warranty
+        df_ano_garantia = df_ano[df_ano["STATUS_GARANTIA"] == "DENTRO"]
+        pct_under_warranty = 100 * len(df_ano_garantia) / total
+
+        # % Chassis Under Electronic Warranty
+        # Calculate electronic warranty status
+        fim_garan_eletr = pd.to_datetime(df_ano["DT_NUM_NF"], errors="coerce") + timedelta(days=GARANTIA_ELETRONICA_DAYS)
+        dentro_eletr = (fim_garan_eletr >= hoje).sum()
+        pct_under_eletr_warranty = 100 * dentro_eletr / total
+
+        # % Chassis Error RTM Ticket
+        com_erro_rtm = len(chassis_ano & chassis_com_erro_rtm)
+        pct_erro_rtm = 100 * com_erro_rtm / total
+
+        results.append({
+            "Ano": int(ano),
+            "Units Sales": units_sales,
+            "Start up DFS": pct_startup_dfs,
+            "% Chassis with tickets": pct_com_chamado,
+            "% Chassis Under Warranty": pct_under_warranty,
+            "% Chassis Under Electronic Warranty": pct_under_eletr_warranty,
+            "% Chassis Error RTM Ticket": pct_erro_rtm,
+        })
+
+    # Add Total column
+    if results:
+        df_total = df.drop_duplicates(subset=["NUM_SERIAL"])
+        chassis_total = set(df_total["NUM_SERIAL"].dropna().astype(str))
+        total_all = len(chassis_total)
+
+        if total_all > 0:
+            com_partida_total = len(chassis_total & partida_set)
+            com_chamado_total = len(chassis_total & chassis_com_chamado)
+            com_erro_rtm_total = len(chassis_total & chassis_com_erro_rtm)
+
+            dentro_garantia_total = len(df_total[df_total["STATUS_GARANTIA"] == "DENTRO"])
+
+            fim_garan_eletr_total = pd.to_datetime(df_total["DT_NUM_NF"], errors="coerce") + timedelta(days=GARANTIA_ELETRONICA_DAYS)
+            dentro_eletr_total = (fim_garan_eletr_total >= hoje).sum()
+
+            results.append({
+                "Ano": "Total",
+                "Units Sales": total_all,
+                "Start up DFS": 100 * com_partida_total / total_all,
+                "% Chassis with tickets": 100 * com_chamado_total / total_all,
+                "% Chassis Under Warranty": 100 * dentro_garantia_total / total_all,
+                "% Chassis Under Electronic Warranty": 100 * dentro_eletr_total / total_all,
+                "% Chassis Error RTM Ticket": 100 * com_erro_rtm_total / total_all,
+            })
+
+    return pd.DataFrame(results)
+
+
+def get_rtm_summary_metrics(
+    o2c_df: pd.DataFrame,
+    chamados_df: pd.DataFrame,
+    rtm_filter: str,
+) -> Dict[str, any]:
+    """
+    Get summary metrics for RTM analysis.
+    """
+    hoje = pd.Timestamp.now().normalize()
+
+    df = o2c_df[o2c_df["RTM"] == rtm_filter].drop_duplicates(subset=["NUM_SERIAL"]).copy()
+
+    if len(df) == 0:
+        return {
+            "total_units": 0,
+            "chassis_36m_warranty": 0,
+            "chassis_under_electronic_warranty": 0,
+            "installed_base_known": 0,
+        }
+
+    # Total units sold
+    total_units = len(df)
+
+    # Chassis with 36 months warranty still active
+    df_36m = df[df["GARANTIA"] == GARANTIA_PERIODS["36_MESES"]]
+    chassis_36m_dentro = len(df_36m[df_36m["STATUS_GARANTIA"] == "DENTRO"])
+
+    # Chassis under electronic warranty
+    fim_garan_eletr = pd.to_datetime(df["DT_NUM_NF"], errors="coerce") + timedelta(days=GARANTIA_ELETRONICA_DAYS)
+    chassis_eletr_dentro = (fim_garan_eletr >= hoje).sum()
+
+    # Installed base known by DFS (chassis with any call)
+    chamados_clean = chamados_df.copy()
+    chamados_clean.columns = chamados_clean.columns.str.strip().str.upper()
+    chassis_com_chamado = set(chamados_clean["CHASSI"].dropna())
+    installed_base = len(set(df["NUM_SERIAL"]) & chassis_com_chamado)
+
+    return {
+        "total_units": total_units,
+        "chassis_36m_warranty": chassis_36m_dentro,
+        "chassis_under_electronic_warranty": int(chassis_eletr_dentro),
+        "installed_base_known": installed_base,
+    }
