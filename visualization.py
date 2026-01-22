@@ -2,9 +2,20 @@ import json
 
 import plotly.express as px
 import pandas as pd
-from typing import Dict, Any
+from typing import Dict, Any, TypedDict
 import streamlit as st
 from constants import MAIN_MODELS
+
+
+class KpiMetrics(TypedDict):
+    """Type definition for KPI metrics returned by create_kpi_metrics."""
+
+    total: int
+    abertos: int
+    fechados: int
+    aging_medio: float
+    pct_garantia: float
+    pct_rtm: float
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
@@ -733,8 +744,18 @@ def choropleth_map_brazil(df: pd.DataFrame, estado_counts: pd.DataFrame) -> Any:
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
-def create_kpi_metrics(df: pd.DataFrame) -> Dict[str, Any]:
-    """Creates KPI metrics with optimizations."""
+def create_kpi_metrics(df: pd.DataFrame) -> KpiMetrics:
+    """Creates KPI metrics with optimizations.
+
+    Returns:
+        KpiMetrics: A typed dictionary containing:
+            - total: Total number of records
+            - abertos: Count of open tickets (STATUS == "ABERTO")
+            - fechados: Count of closed tickets
+            - aging_medio: Average aging in days
+            - pct_garantia: Percentage under warranty
+            - pct_rtm: Percentage with RTM
+    """
     total = len(df)
     abertos = (df["STATUS"] == "ABERTO").sum()
     fechados = (df["STATUS"] != "ABERTO").sum()

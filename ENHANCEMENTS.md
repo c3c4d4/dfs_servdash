@@ -7,4 +7,4 @@
 ## Medium Impact
 
 - [x] ENH-002: [MEDIUM] Use constants from constants.py for MAIN_MODELS instead of hardcoded lists | Files: pages/1_📊_Principal.py:183, pages/2_🗺️_Parque_Instalado.py:349
-- [ ] ENH-003: [MEDIUM] Add type hints to create_kpi_metrics function return type | File: visualization.py:737
+- [x] ENH-003: [MEDIUM] Add type hints to create_kpi_metrics function return type | File: visualization.py:737
