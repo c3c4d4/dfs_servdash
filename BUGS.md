@@ -3,7 +3,7 @@
 ## Important Bugs
 
 - [x] BUG-001: [IMPORTANT] Unused variable `mask_aberto_sem_fim` calculated but never applied - closed tickets with missing end dates get aging calculated to today instead of being handled correctly | File: utils.py:81
-- [ ] BUG-002: [IMPORTANT] Dead code: variables `dt_inicio_safeguard` and `dt_fim_safeguard` calculated but never used; row-by-row function used instead | File: pages/1_📊_Principal.py:274-280
+- [x] BUG-002: [IMPORTANT] Dead code: variables `dt_inicio_safeguard` and `dt_fim_safeguard` calculated but never used; row-by-row function used instead | File: pages/1_📊_Principal.py:274-280
 
 ## Minor Bugs (Lint Issues in Core Files)
 

@@ -271,13 +271,6 @@ def main():
     )
     if mask_aging_vazio.any():
         hoje = pd.Timestamp.now().normalize()
-        dt_inicio_safeguard = pd.to_datetime(
-            df_display.loc[mask_aging_vazio, "INÍCIO"], dayfirst=True, errors="coerce"
-        ).dt.date
-        dt_fim_safeguard = pd.to_datetime(
-            df_display.loc[mask_aging_vazio, "FIM"], dayfirst=True, errors="coerce"
-        ).dt.date
-        dt_fim_safeguard = dt_fim_safeguard.fillna(hoje)
 
         def calc_aging(row):
             try:
