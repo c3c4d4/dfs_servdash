@@ -801,3 +801,276 @@ def create_model_kpi_metrics(df: pd.DataFrame) -> Dict[str, float]:
     model_percentages["pct_others"] = (others_count / total * 100) if total > 0 else 0
 
     return model_percentages
+
+
+# =============================================================================
+# KPI VISUALIZATION COMPONENTS - Progress Bar Style
+# =============================================================================
+
+def render_kpi_card(label: str, value: str, icon: str = "", color: str = "#1f77b4") -> None:
+    """Render a styled KPI card with large value and label.
+
+    Args:
+        label: The KPI label/description
+        value: The formatted value to display
+        icon: Optional emoji icon
+        color: Accent color for the card
+    """
+    st.markdown(
+        f"""
+        <div style="
+            background: linear-gradient(135deg, {color}15 0%, {color}05 100%);
+            border-left: 4px solid {color};
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin-bottom: 8px;
+        ">
+            <div style="font-size: 28px; font-weight: 700; color: #1a1a1a; margin-bottom: 4px;">
+                {icon} {value}
+            </div>
+            <div style="font-size: 13px; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">
+                {label}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_progress_bar(
+    label: str,
+    value: float,
+    max_value: float = 100.0,
+    color: str = "#1f77b4",
+    show_percentage: bool = True,
+) -> None:
+    """Render a horizontal progress bar with label.
+
+    Args:
+        label: The metric label
+        value: Current value
+        max_value: Maximum value (default 100 for percentages)
+        color: Bar fill color
+        show_percentage: Whether to show % symbol
+    """
+    percentage = min((value / max_value) * 100, 100) if max_value > 0 else 0
+    display_value = f"{value:.1f}%" if show_percentage else f"{value:.1f}"
+
+    st.markdown(
+        f"""
+        <div style="margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <span style="font-size: 13px; color: #444; font-weight: 500;">{label}</span>
+                <span style="font-size: 13px; color: #1a1a1a; font-weight: 600;">{display_value}</span>
+            </div>
+            <div style="
+                background: #e9ecef;
+                border-radius: 4px;
+                height: 8px;
+                overflow: hidden;
+            ">
+                <div style="
+                    background: {color};
+                    width: {percentage}%;
+                    height: 100%;
+                    border-radius: 4px;
+                    transition: width 0.3s ease;
+                "></div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_kpi_section_cards(metrics: KpiMetrics) -> None:
+    """Render the main KPI cards in a clean grid layout.
+
+    Args:
+        metrics: KpiMetrics dictionary from create_kpi_metrics()
+    """
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        render_kpi_card("Total de Chamados", f"{metrics['total']:,}", "📋", "#2196F3")
+
+    with col2:
+        render_kpi_card("Abertos", f"{metrics['abertos']:,}", "🔴", "#f44336")
+
+    with col3:
+        render_kpi_card("Fechados", f"{metrics['fechados']:,}", "✅", "#4CAF50")
+
+    with col4:
+        aging_value = f"{metrics['aging_medio']:.1f}" if not pd.isna(metrics["aging_medio"]) else "-"
+        render_kpi_card("Aging Médio (dias)", aging_value, "⏱️", "#FF9800")
+
+
+def render_percentage_bars(metrics: KpiMetrics) -> None:
+    """Render percentage KPIs as progress bars.
+
+    Args:
+        metrics: KpiMetrics dictionary from create_kpi_metrics()
+    """
+    col1, col2 = st.columns(2)
+
+    with col1:
+        render_progress_bar("Dentro da Garantia", metrics["pct_garantia"], color="#4CAF50")
+
+    with col2:
+        render_progress_bar("RTM", metrics["pct_rtm"], color="#FF5722")
+
+
+def render_model_distribution_bars(model_metrics: Dict[str, float]) -> None:
+    """Render model distribution as horizontal progress bars.
+
+    Args:
+        model_metrics: Dictionary from create_model_kpi_metrics()
+    """
+    if not model_metrics:
+        return
+
+    # Color palette for models
+    colors = {
+        "pct_helix": "#2196F3",
+        "pct_vista": "#9C27B0",
+        "pct_century": "#00BCD4",
+        "pct_3g": "#FF9800",
+        "pct_e123": "#4CAF50",
+        "pct_7502a": "#E91E63",
+        "pct_others": "#9E9E9E",
+    }
+
+    labels = {
+        "pct_helix": "HELIX",
+        "pct_vista": "VISTA",
+        "pct_century": "CENTURY",
+        "pct_3g": "3G",
+        "pct_e123": "E123",
+        "pct_7502a": "7502A",
+        "pct_others": "Outros",
+    }
+
+    # Sort by value descending, but keep "Outros" last
+    sorted_items = sorted(
+        [(k, v) for k, v in model_metrics.items() if k != "pct_others"],
+        key=lambda x: x[1],
+        reverse=True,
+    )
+    if "pct_others" in model_metrics:
+        sorted_items.append(("pct_others", model_metrics["pct_others"]))
+
+    # Render in two columns for better layout
+    col1, col2 = st.columns(2)
+
+    for i, (key, value) in enumerate(sorted_items):
+        with col1 if i % 2 == 0 else col2:
+            render_progress_bar(labels[key], value, color=colors.get(key, "#1f77b4"))
+
+
+def render_section_header(title: str, icon: str = "") -> None:
+    """Render a styled section header.
+
+    Args:
+        title: Section title
+        icon: Optional emoji icon
+    """
+    st.markdown(
+        f"""
+        <div style="
+            font-size: 14px;
+            font-weight: 600;
+            color: #444;
+            margin: 20px 0 12px 0;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e9ecef;
+        ">
+            {icon} {title}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_currency_card(label: str, value: float, icon: str = "💰", color: str = "#4CAF50") -> None:
+    """Render a currency KPI card with Brazilian formatting.
+
+    Args:
+        label: The KPI label
+        value: The numeric value
+        icon: Optional emoji icon
+        color: Accent color
+    """
+    # Format as Brazilian currency
+    formatted = f"R$ {value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+    st.markdown(
+        f"""
+        <div style="
+            background: linear-gradient(135deg, {color}15 0%, {color}05 100%);
+            border-left: 4px solid {color};
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 8px;
+        ">
+            <div style="font-size: 18px; font-weight: 700; color: #1a1a1a; margin-bottom: 2px;">
+                {icon} {formatted}
+            </div>
+            <div style="font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">
+                {label}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_warranty_distribution_bars(garantia_dist: Dict[str, float]) -> None:
+    """Render warranty period distribution as progress bars.
+
+    Args:
+        garantia_dist: Dictionary with pct_6m, pct_12m, pct_18m, pct_24m, pct_36m
+    """
+    labels = {
+        "pct_6m": "6 meses",
+        "pct_12m": "12 meses",
+        "pct_18m": "18 meses",
+        "pct_24m": "24 meses",
+        "pct_36m": "36 meses",
+    }
+
+    colors = {
+        "pct_6m": "#FF5722",
+        "pct_12m": "#FF9800",
+        "pct_18m": "#FFC107",
+        "pct_24m": "#8BC34A",
+        "pct_36m": "#4CAF50",
+    }
+
+    col1, col2 = st.columns(2)
+
+    for i, (key, label) in enumerate(labels.items()):
+        value = garantia_dist.get(key, 0)
+        with col1 if i % 2 == 0 else col2:
+            render_progress_bar(label, value, color=colors.get(key, "#1f77b4"))
+
+
+def render_multi_progress_bars(
+    items: list,
+    title: str = "",
+    columns: int = 2,
+) -> None:
+    """Render multiple progress bars in a grid layout.
+
+    Args:
+        items: List of tuples (label, value, color)
+        title: Optional section title
+        columns: Number of columns (default 2)
+    """
+    if title:
+        render_section_header(title)
+
+    cols = st.columns(columns)
+
+    for i, (label, value, color) in enumerate(items):
+        with cols[i % columns]:
+            render_progress_bar(label, value, color=color)

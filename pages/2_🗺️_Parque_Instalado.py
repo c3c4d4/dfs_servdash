@@ -300,66 +300,28 @@ st.title("🗺️ Parque Instalado - Análise por Estado")
 tab_kpis, tab_tabela, tab_rtm_analysis = st.tabs(["📌 KPIs", "📋 Parque Instalado", "📊 Análise RTM"])
 
 with tab_kpis:
-    # Primeira linha de KPIs
-    col1, col2, col3, col4, col5, col6, col7, col8, col9 = st.columns(9)
-    col1.metric("Total de Bombas", total_bombas_filtro)
-    col2.metric("% Com Partida (DFS)", f"{pct_com_partida_dfs:.1f}%")
-    col3.metric("% Com Partida (Terceiros)", f"{pct_com_partida_terceiros:.1f}%")
-    col4.metric("% Com Chamado Garantia", f"{pct_com_chamado:.1f}%")
-    col5.metric("% Sem Chamado Garantia", f"{pct_sem_chamado:.1f}%")
-    col6.metric("% RTM", f"{pct_rtm:.1f}%")
-    col7.metric("% Em Garantia", f"{pct_em_garantia:.1f}%")
-    col8.metric("% Fora de Garantia", f"{pct_fora_garantia:.1f}%")
-    col9.metric("Média Chamados/Bomba", f"{media_chamados_por_bomba:.1f}")
+    # === SEÇÃO 1: Resumo Principal ===
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        vz.render_kpi_card("Total de Bombas", f"{total_bombas_filtro:,}", "🔧", "#2196F3")
+    with col2:
+        vz.render_kpi_card("Média Chamados/Bomba", f"{media_chamados_por_bomba:.1f}", "📞", "#FF9800")
+    with col3:
+        vz.render_kpi_card("% RTM", f"{pct_rtm:.1f}%", "⚠️", "#f44336")
 
-    # Segunda linha de KPIs - Valores
-    col10, col11, col12, col13 = st.columns(4)
-    col10.metric(
-        "Média Valor Total (R$)",
-        f"R$ {media_valor_total:,.2f}".replace(",", "X")
-        .replace(".", ",")
-        .replace("X", "."),
-    )
-    col11.metric(
-        "Média Valor Peça (R$)",
-        f"R$ {media_valor_peca:,.2f}".replace(",", "X")
-        .replace(".", ",")
-        .replace("X", "."),
-    )
-    col12.metric(
-        "Soma Valor Total (R$)",
-        f"R$ {soma_valor_total:,.2f}".replace(",", "X")
-        .replace(".", ",")
-        .replace("X", "."),
-    )
-    col13.metric(
-        "Soma Valor Peça (R$)",
-        f"R$ {soma_valor_peca:,.2f}".replace(",", "X")
-        .replace(".", ",")
-        .replace("X", "."),
-    )
+    # === SEÇÃO 2: Partida e Chamados ===
+    vz.render_section_header("Partida Inicial & Chamados", "🚀")
+    vz.render_multi_progress_bars([
+        ("Com Partida (DFS)", pct_com_partida_dfs, "#4CAF50"),
+        ("Com Partida (Terceiros)", pct_com_partida_terceiros, "#8BC34A"),
+        ("Com Chamado Garantia", pct_com_chamado, "#FF9800"),
+        ("Sem Chamado Garantia", pct_sem_chamado, "#9E9E9E"),
+    ])
 
-    # Terceira linha de KPIs - Distribuição por Modelo (using reusable function)
-    model_metrics = vz.create_model_kpi_metrics(filtered_filtros_unique)
-    if model_metrics:
-        col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
-        col1.metric("% HELIX", f"{model_metrics['pct_helix']:.1f}%")
-        col2.metric("% VISTA", f"{model_metrics['pct_vista']:.1f}%")
-        col3.metric("% CENTURY", f"{model_metrics['pct_century']:.1f}%")
-        col4.metric("% 3G", f"{model_metrics['pct_3g']:.1f}%")
-        col5.metric("% E123", f"{model_metrics['pct_e123']:.1f}%")
-        col6.metric("% 7502A", f"{model_metrics['pct_7502a']:.1f}%")
-        col7.metric("% Outros", f"{model_metrics['pct_others']:.1f}%")
+    # === SEÇÃO 3: Status de Garantia ===
+    vz.render_section_header("Status de Garantia", "🛡️")
 
-    # Terceira linha de KPIs - Garantia Eletrônica e Distribuição por Faixas
-    col14, col15, col16, col17, col18, col19, col20 = st.columns(7)
-
-    # Garantia Eletrônica
-    media_garan_eletr = (
-        filtered_filtros_unique["GARANTIA_ELETRONICA"].mean()
-        if len(filtered_filtros_unique) > 0
-        else 0
-    )
+    # Garantia Eletrônica calculations
     qtd_dentro_eletr = (
         filtered_filtros_unique["STATUS_GARAN_ELETRICA"] == "DENTRO"
     ).sum()
@@ -370,22 +332,35 @@ with tab_kpis:
     pct_dentro_eletr = 100 * qtd_dentro_eletr / total_eletr if total_eletr else 0
     pct_fora_eletr = 100 * qtd_fora_eletr / total_eletr if total_eletr else 0
 
-    # Calculate warranty distribution using business logic
-    garantia_dist = bl.calculate_garantia_distribution(filtered_filtros_unique)
-    pct_6m = garantia_dist["pct_6m"]
-    pct_12m = garantia_dist["pct_12m"]
-    pct_18m = garantia_dist["pct_18m"]
-    pct_24m = garantia_dist["pct_24m"]
-    pct_36m = garantia_dist["pct_36m"]
+    vz.render_multi_progress_bars([
+        ("Em Garantia", pct_em_garantia, "#4CAF50"),
+        ("Fora de Garantia", pct_fora_garantia, "#f44336"),
+        ("Dentro Gar. Eletrônica", pct_dentro_eletr, "#2196F3"),
+        ("Fora Gar. Eletrônica", pct_fora_eletr, "#9E9E9E"),
+    ])
 
-    # Exibir métricas
-    col14.metric("% Dentro Gar. Eletrônica", f"{pct_dentro_eletr:.1f}%")
-    col15.metric("% Fora Gar. Eletrônica", f"{pct_fora_eletr:.1f}%")
-    col16.metric("% Garantia 6m", f"{pct_6m:.1f}%")
-    col17.metric("% Garantia 12m", f"{pct_12m:.1f}%")
-    col18.metric("% Garantia 18m", f"{pct_18m:.1f}%")
-    col19.metric("% Garantia 24m", f"{pct_24m:.1f}%")
-    col20.metric("% Garantia 36m", f"{pct_36m:.1f}%")
+    # === SEÇÃO 4: Distribuição por Período de Garantia ===
+    vz.render_section_header("Distribuição por Período de Garantia", "📅")
+    garantia_dist = bl.calculate_garantia_distribution(filtered_filtros_unique)
+    vz.render_warranty_distribution_bars(garantia_dist)
+
+    # === SEÇÃO 5: Distribuição por Modelo ===
+    model_metrics = vz.create_model_kpi_metrics(filtered_filtros_unique)
+    if model_metrics:
+        vz.render_section_header("Distribuição por Modelo", "📊")
+        vz.render_model_distribution_bars(model_metrics)
+
+    # === SEÇÃO 6: Valores RTM ===
+    vz.render_section_header("Valores RTM", "💰")
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        vz.render_currency_card("Média Valor Total", media_valor_total, "📊", "#4CAF50")
+    with col2:
+        vz.render_currency_card("Média Valor Peça", media_valor_peca, "🔩", "#2196F3")
+    with col3:
+        vz.render_currency_card("Soma Valor Total", soma_valor_total, "💵", "#FF9800")
+    with col4:
+        vz.render_currency_card("Soma Valor Peça", soma_valor_peca, "📦", "#9C27B0")
 
     # --- Mapa ---
     st.header("📊 Distribuição Geográfica")
