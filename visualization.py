@@ -825,10 +825,10 @@ def render_kpi_card(label: str, value: str, icon: str = "", color: str = "#1f77b
             padding: 16px 20px;
             margin-bottom: 8px;
         ">
-            <div style="font-size: 28px; font-weight: 700; color: #1a1a1a; margin-bottom: 4px;">
+            <div style="font-size: 28px; font-weight: 700; color: inherit; margin-bottom: 4px;">
                 {icon} {value}
             </div>
-            <div style="font-size: 13px; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">
+            <div style="font-size: 13px; color: inherit; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.5px;">
                 {label}
             </div>
         </div>
@@ -860,14 +860,16 @@ def render_progress_bar(
         f"""
         <div style="margin-bottom: 12px;">
             <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                <span style="font-size: 13px; color: #444; font-weight: 500;">{label}</span>
-                <span style="font-size: 13px; color: #1a1a1a; font-weight: 600;">{display_value}</span>
+                <span style="font-size: 13px; color: inherit; opacity: 0.8; font-weight: 500;">{label}</span>
+                <span style="font-size: 13px; color: inherit; font-weight: 600;">{display_value}</span>
             </div>
             <div style="
-                background: #e9ecef;
+                background: currentColor;
+                opacity: 0.15;
                 border-radius: 4px;
                 height: 8px;
                 overflow: hidden;
+                position: relative;
             ">
                 <div style="
                     background: {color};
@@ -875,6 +877,10 @@ def render_progress_bar(
                     height: 100%;
                     border-radius: 4px;
                     transition: width 0.3s ease;
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    opacity: 1;
                 "></div>
             </div>
         </div>
@@ -951,12 +957,13 @@ def render_model_distribution_bars(model_metrics: Dict[str, float]) -> None:
     }
 
     # Sort by value descending, but keep "Outros" last
+    # Filter out items with 0% value
     sorted_items = sorted(
-        [(k, v) for k, v in model_metrics.items() if k != "pct_others"],
+        [(k, v) for k, v in model_metrics.items() if k != "pct_others" and v > 0],
         key=lambda x: x[1],
         reverse=True,
     )
-    if "pct_others" in model_metrics:
+    if "pct_others" in model_metrics and model_metrics["pct_others"] > 0:
         sorted_items.append(("pct_others", model_metrics["pct_others"]))
 
     # Render in two columns for better layout
@@ -979,10 +986,11 @@ def render_section_header(title: str, icon: str = "") -> None:
         <div style="
             font-size: 14px;
             font-weight: 600;
-            color: #444;
+            color: inherit;
             margin: 20px 0 12px 0;
             padding-bottom: 8px;
-            border-bottom: 2px solid #e9ecef;
+            border-bottom: 2px solid currentColor;
+            opacity: 0.8;
         ">
             {icon} {title}
         </div>
@@ -1012,10 +1020,10 @@ def render_currency_card(label: str, value: float, icon: str = "💰", color: st
             padding: 12px 16px;
             margin-bottom: 8px;
         ">
-            <div style="font-size: 18px; font-weight: 700; color: #1a1a1a; margin-bottom: 2px;">
+            <div style="font-size: 18px; font-weight: 700; color: inherit; margin-bottom: 2px;">
                 {icon} {formatted}
             </div>
-            <div style="font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">
+            <div style="font-size: 11px; color: inherit; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.5px;">
                 {label}
             </div>
         </div>
