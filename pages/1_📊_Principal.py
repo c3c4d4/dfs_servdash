@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime, timedelta
 import base64
 
 from data_loader import (
@@ -12,9 +11,7 @@ from data_loader import (
 from utils import (
     extrair_tags_vectorized,
     extrair_codigo_bomba_vectorized,
-    calcular_aging_vectorized,
     calcular_garantia_vectorized,
-    formatar_data_excel_vectorized,
     extrair_modelo_vectorized,
 )
 from auth import check_password
@@ -175,33 +172,17 @@ def kpi_section(df):
     col5.metric("% Dentro da Garantia", f"{metrics['pct_garantia']:.1f}%")
     col6.metric("% RTM", f"{metrics['pct_rtm']:.1f}%")
 
-    # Second row - model distribution KPIs
-    if len(df) > 0 and "MODELO" in df.columns:
-        # Calculate model distribution
-        total = len(df)
-        model_counts = df["MODELO"].value_counts()
-        main_models = ["HELIX", "VISTA", "CENTURY", "3G", "E123", "7502A"]
-
-        # Calculate percentages
-        pct_helix = (model_counts.get("HELIX", 0) / total * 100) if total > 0 else 0
-        pct_vista = (model_counts.get("VISTA", 0) / total * 100) if total > 0 else 0
-        pct_century = (model_counts.get("CENTURY", 0) / total * 100) if total > 0 else 0
-        pct_3g = (model_counts.get("3G", 0) / total * 100) if total > 0 else 0
-        pct_e123 = (model_counts.get("E123", 0) / total * 100) if total > 0 else 0
-        pct_7502a = (model_counts.get("7502A", 0) / total * 100) if total > 0 else 0
-
-        # Others percentage
-        others_count = model_counts[~model_counts.index.isin(main_models)].sum()
-        pct_others = (others_count / total * 100) if total > 0 else 0
-
+    # Second row - model distribution KPIs (using reusable function)
+    model_metrics = vz.create_model_kpi_metrics(df)
+    if model_metrics:
         col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
-        col1.metric("% HELIX", f"{pct_helix:.1f}%")
-        col2.metric("% VISTA", f"{pct_vista:.1f}%")
-        col3.metric("% CENTURY", f"{pct_century:.1f}%")
-        col4.metric("% 3G", f"{pct_3g:.1f}%")
-        col5.metric("% E123", f"{pct_e123:.1f}%")
-        col6.metric("% 7502A", f"{pct_7502a:.1f}%")
-        col7.metric("% Outros", f"{pct_others:.1f}%")
+        col1.metric("% HELIX", f"{model_metrics['pct_helix']:.1f}%")
+        col2.metric("% VISTA", f"{model_metrics['pct_vista']:.1f}%")
+        col3.metric("% CENTURY", f"{model_metrics['pct_century']:.1f}%")
+        col4.metric("% 3G", f"{model_metrics['pct_3g']:.1f}%")
+        col5.metric("% E123", f"{model_metrics['pct_e123']:.1f}%")
+        col6.metric("% 7502A", f"{model_metrics['pct_7502a']:.1f}%")
+        col7.metric("% Outros", f"{model_metrics['pct_others']:.1f}%")
 
 
 def main():
