@@ -4,7 +4,6 @@ Tests for filters.py module.
 
 import pytest
 import pandas as pd
-from datetime import datetime
 
 # Add parent directory to path for imports
 import sys

@@ -1,4 +1,3 @@
-from datetime import timedelta
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -8,7 +7,6 @@ from data_loader import (
     process_o2c_data,
     carregar_base_erros_rtm,
 )
-from utils import extrair_estado
 from auth import check_password
 from filters import sidebar_filters_rtm_errors, aplicar_filtros_rtm_errors
 import visualization as vz

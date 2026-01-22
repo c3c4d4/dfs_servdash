@@ -1,10 +1,8 @@
 import json
 
 import plotly.express as px
-import plotly.graph_objects as go
 import pandas as pd
-import numpy as np
-from typing import List, Dict, Any
+from typing import Dict, Any
 import streamlit as st
 
 
@@ -531,7 +529,7 @@ def choropleth_map_brazil(df: pd.DataFrame, estado_counts: pd.DataFrame) -> Any:
                                 centroid[1],
                             )  # (lon, lat)
 
-                        except Exception as e:
+                        except Exception:
                             # Fallback to simple geometric center if polylabel fails
                             if geometry["type"] == "Polygon":
                                 coords = geometry["coordinates"][0]

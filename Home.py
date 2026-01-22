@@ -85,11 +85,10 @@ try:
     else:
         todays_calls = 0
 
-except Exception as e:
+except Exception:
     total_active = "-"
     total_units = "-"
     todays_calls = "-"
-    # st.error(f"Erro ao carregar métricas: {e}")
 
 
 # Título e mensagem de boas-vindas
