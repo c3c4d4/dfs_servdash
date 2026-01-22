@@ -864,12 +864,10 @@ def render_progress_bar(
                 <span style="font-size: 13px; color: inherit; font-weight: 600;">{display_value}</span>
             </div>
             <div style="
-                background: currentColor;
-                opacity: 0.15;
+                background: rgba(128, 128, 128, 0.25);
                 border-radius: 4px;
                 height: 8px;
                 overflow: hidden;
-                position: relative;
             ">
                 <div style="
                     background: {color};
@@ -877,10 +875,6 @@ def render_progress_bar(
                     height: 100%;
                     border-radius: 4px;
                     transition: width 0.3s ease;
-                    position: absolute;
-                    top: 0;
-                    left: 0;
-                    opacity: 1;
                 "></div>
             </div>
         </div>
