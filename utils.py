@@ -77,9 +77,9 @@ def calcular_aging_vectorized(
     inicio_dt = pd.to_datetime(inicio_series, dayfirst=True, errors="coerce")
     fim_dt = pd.to_datetime(fim_series, dayfirst=True, errors="coerce")
 
-    # Handle open tickets without end date
+    # Handle open tickets without end date - only fill NaN for open tickets
     mask_aberto_sem_fim = (status_series == "ABERTO") & fim_dt.isna()
-    fim_dt = fim_dt.fillna(hoje)
+    fim_dt = fim_dt.where(~mask_aberto_sem_fim, hoje)
 
     # Calculate aging
     aging = (fim_dt - inicio_dt).dt.days
