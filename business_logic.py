@@ -418,9 +418,9 @@ def get_rtm_summary_metrics(
     """
     hoje = pd.Timestamp.now().normalize()
 
-    df = o2c_df[o2c_df["RTM"] == rtm_filter].drop_duplicates(subset=["NUM_SERIAL"]).copy()
+    df_all = o2c_df[o2c_df["RTM"] == rtm_filter].copy()
 
-    if len(df) == 0:
+    if len(df_all) == 0:
         return {
             "total_units": 0,
             "chassis_36m_warranty": 0,
@@ -428,8 +428,19 @@ def get_rtm_summary_metrics(
             "installed_base_known": 0,
         }
 
-    # Total units sold
-    total_units = len(df)
+    # Ensure ANO_NF exists
+    if "ANO_NF" not in df_all.columns:
+        df_all["ANO_NF"] = pd.to_datetime(df_all["DT_NUM_NF"], errors="coerce").dt.year
+
+    # Total units sold - sum of unique chassis per year (consistent with table)
+    # This accounts for partial deliveries where same chassis appears in multiple years
+    total_units = 0
+    for ano in df_all["ANO_NF"].dropna().unique():
+        df_ano = df_all[df_all["ANO_NF"] == ano].drop_duplicates(subset=["NUM_SERIAL"])
+        total_units += len(df_ano)
+
+    # For other metrics, use globally deduplicated data
+    df = df_all.drop_duplicates(subset=["NUM_SERIAL"]).copy()
 
     # Chassis with 36 months warranty still active
     df_36m = df[df["GARANTIA"] == GARANTIA_PERIODS["36_MESES"]]
