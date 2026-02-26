@@ -2,7 +2,7 @@ import json
 
 import plotly.express as px
 import pandas as pd
-from typing import Dict, Any, TypedDict
+from typing import Dict, Any, TypedDict, Tuple
 import streamlit as st
 from constants import MAIN_MODELS
 
@@ -16,6 +16,28 @@ class KpiMetrics(TypedDict):
     aging_medio: float
     pct_garantia: float
     pct_rtm: float
+
+
+RELATIONSHIP_SCORE_LABELS = {
+    1: "1 · Alto volume + alta rapidez",
+    2: "2 · Baixo volume + alta rapidez",
+    3: "3 · Baixo volume + baixa rapidez",
+    4: "4 · Alto volume + baixa rapidez",
+}
+
+RELATIONSHIP_SCORE_COLORS = {
+    1: "#2E8B57",
+    2: "#88B04B",
+    3: "#F4A259",
+    4: "#D1495B",
+}
+
+RELATIONSHIP_SCORE_BAND_COLORS = {
+    1: "rgba(46, 139, 87, 0.14)",
+    2: "rgba(136, 176, 75, 0.14)",
+    3: "rgba(244, 162, 89, 0.14)",
+    4: "rgba(209, 73, 91, 0.14)",
+}
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
@@ -188,6 +210,314 @@ def line_chart_aging(df: pd.DataFrame, campo: str) -> Any:
         title=dict(x=0.5, xanchor="center"),
         hoverlabel=dict(bgcolor="white", font_size=12, font_family="Arial"),
     )
+    return fig
+
+
+def calculate_relationship_score(
+    volume: float,
+    aging_medio_dias: float,
+    volume_corte: float,
+    aging_corte: float,
+) -> int:
+    """Classify maintainer relationship score (1 best, 4 worst)."""
+    if pd.isna(volume) or pd.isna(aging_medio_dias):
+        return 3
+
+    alto_volume = volume >= volume_corte
+    alta_rapidez = aging_medio_dias <= aging_corte  # menor aging = mais rápido
+
+    if alto_volume and alta_rapidez:
+        return 1
+    if (not alto_volume) and alta_rapidez:
+        return 2
+    if (not alto_volume) and (not alta_rapidez):
+        return 3
+    return 4
+
+
+def _prepare_relationship_source(df: pd.DataFrame) -> pd.DataFrame:
+    """Normalize source dataframe for relationship matrix calculations."""
+    base_cols = {"MANTENEDOR", "DATA_BASE", "AGING_NUM", "CHAMADO_KEY"}
+    if df is None or df.empty:
+        return pd.DataFrame(columns=list(base_cols))
+
+    if base_cols.issubset(df.columns):
+        base = df.copy()
+        base["DATA_BASE"] = pd.to_datetime(base["DATA_BASE"], errors="coerce")
+        base["AGING_NUM"] = pd.to_numeric(base["AGING_NUM"], errors="coerce")
+        base["CHAMADO_KEY"] = base["CHAMADO_KEY"].astype(str)
+        base["MANTENEDOR"] = base["MANTENEDOR"].astype(str).str.strip()
+        return base[
+            (base["DATA_BASE"].notna())
+            & (base["AGING_NUM"].notna())
+            & (base["MANTENEDOR"] != "")
+        ]
+
+    data_col = (
+        "INÍCIO" if "INÍCIO" in df.columns else "DATA" if "DATA" in df.columns else None
+    )
+    if data_col is None or "MANTENEDOR" not in df.columns:
+        return pd.DataFrame(columns=list(base_cols))
+
+    base = df.copy()
+    base["DATA_BASE"] = pd.to_datetime(base[data_col], dayfirst=True, errors="coerce")
+    base["MANTENEDOR"] = base["MANTENEDOR"].fillna("").astype(str).str.strip()
+
+    if "AGING" in base.columns:
+        base["AGING_NUM"] = pd.to_numeric(base["AGING"], errors="coerce")
+    else:
+        base["AGING_NUM"] = pd.NA
+
+    # Fallback when AGING is unavailable: calculate from INÍCIO/FIM.
+    if base["AGING_NUM"].isna().all() and "FIM" in base.columns:
+        base["FIM_CALC"] = pd.to_datetime(base["FIM"], dayfirst=True, errors="coerce")
+        hoje = pd.Timestamp.now().normalize()
+        base.loc[base["FIM_CALC"].isna(), "FIM_CALC"] = hoje
+        base["AGING_NUM"] = (base["FIM_CALC"] - base["DATA_BASE"]).dt.days
+
+    if "CHAMADO" in base.columns:
+        base["CHAMADO_KEY"] = base["CHAMADO"].fillna("").astype(str).str.strip()
+    elif "SS" in base.columns:
+        base["CHAMADO_KEY"] = base["SS"].fillna("").astype(str).str.strip()
+    else:
+        base["CHAMADO_KEY"] = base.index.astype(str)
+
+    base.loc[base["CHAMADO_KEY"] == "", "CHAMADO_KEY"] = base.index.astype(str)
+    base["AGING_NUM"] = pd.to_numeric(base["AGING_NUM"], errors="coerce").clip(lower=0)
+
+    base = base[
+        (base["MANTENEDOR"] != "")
+        & base["DATA_BASE"].notna()
+        & base["AGING_NUM"].notna()
+    ]
+    return base[["MANTENEDOR", "DATA_BASE", "AGING_NUM", "CHAMADO_KEY"]]
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def filter_customer_relationship_period(
+    df: pd.DataFrame,
+    periodo: str = "All time",
+) -> pd.DataFrame:
+    """Filter dataframe for customer relationship analysis period."""
+    base = _prepare_relationship_source(df)
+    if base.empty:
+        return base
+
+    if periodo == "All time":
+        return base
+
+    data_max = base["DATA_BASE"].max()
+    months = 6 if periodo == "Últimos 6 meses" else 12
+    limite = data_max - pd.DateOffset(months=months)
+    return base[base["DATA_BASE"] >= limite].copy()
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def get_customer_relationship_matrix_data(
+    df: pd.DataFrame,
+) -> Tuple[pd.DataFrame, float, float]:
+    """Aggregate maintainer volume/rapidez and assign score 1-4."""
+    base = _prepare_relationship_source(df)
+    if base.empty:
+        return pd.DataFrame(), 0.0, 0.0
+
+    matrix = (
+        base.groupby("MANTENEDOR", as_index=False)
+        .agg(
+            VOLUME=("CHAMADO_KEY", "nunique"),
+            AGING_MEDIO_DIAS=("AGING_NUM", "mean"),
+        )
+        .sort_values("VOLUME", ascending=False)
+    )
+
+    if matrix.empty:
+        return pd.DataFrame(), 0.0, 0.0
+
+    volume_corte = float(matrix["VOLUME"].median())
+    aging_corte = float(matrix["AGING_MEDIO_DIAS"].median())
+
+    matrix["SCORE"] = matrix.apply(
+        lambda row: calculate_relationship_score(
+            row["VOLUME"],
+            row["AGING_MEDIO_DIAS"],
+            volume_corte,
+            aging_corte,
+        ),
+        axis=1,
+    )
+    matrix["PERFIL"] = matrix["SCORE"].map(RELATIONSHIP_SCORE_LABELS)
+    matrix["AGING_MEDIO_DIAS"] = matrix["AGING_MEDIO_DIAS"].round(1)
+    matrix = matrix.sort_values(["SCORE", "VOLUME"], ascending=[True, False])
+
+    return matrix, volume_corte, aging_corte
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def get_customer_relationship_monthly_scores(df: pd.DataFrame) -> pd.DataFrame:
+    """Calculate monthly score progression for each SAW (mantenedor)."""
+    base = _prepare_relationship_source(df)
+    if base.empty:
+        return pd.DataFrame()
+
+    base["ANO_MES"] = base["DATA_BASE"].dt.to_period("M").dt.to_timestamp()
+    monthly = (
+        base.groupby(["ANO_MES", "MANTENEDOR"], as_index=False)
+        .agg(
+            VOLUME=("CHAMADO_KEY", "nunique"),
+            AGING_MEDIO_DIAS=("AGING_NUM", "mean"),
+        )
+        .sort_values(["ANO_MES", "MANTENEDOR"])
+    )
+
+    if monthly.empty:
+        return pd.DataFrame()
+
+    monthly["VOLUME_CORTE_MES"] = monthly.groupby("ANO_MES")["VOLUME"].transform(
+        "median"
+    )
+    monthly["AGING_CORTE_MES"] = monthly.groupby("ANO_MES")[
+        "AGING_MEDIO_DIAS"
+    ].transform("median")
+    monthly["SCORE"] = monthly.apply(
+        lambda row: calculate_relationship_score(
+            row["VOLUME"],
+            row["AGING_MEDIO_DIAS"],
+            row["VOLUME_CORTE_MES"],
+            row["AGING_CORTE_MES"],
+        ),
+        axis=1,
+    )
+    monthly["PERFIL"] = monthly["SCORE"].map(RELATIONSHIP_SCORE_LABELS)
+    monthly["AGING_MEDIO_DIAS"] = monthly["AGING_MEDIO_DIAS"].round(1)
+
+    return monthly
+
+
+def customer_relationship_matrix_chart(df: pd.DataFrame) -> Any:
+    """Scatter matrix by maintainer with score classification."""
+    matrix, volume_corte, aging_corte = get_customer_relationship_matrix_data(df)
+    if matrix.empty:
+        return None
+
+    color_map = {
+        RELATIONSHIP_SCORE_LABELS[k]: v for k, v in RELATIONSHIP_SCORE_COLORS.items()
+    }
+
+    fig = px.scatter(
+        matrix,
+        x="VOLUME",
+        y="AGING_MEDIO_DIAS",
+        size="VOLUME",
+        color="PERFIL",
+        text="MANTENEDOR",
+        category_orders={"PERFIL": list(RELATIONSHIP_SCORE_LABELS.values())},
+        color_discrete_map=color_map,
+        hover_data={
+            "MANTENEDOR": True,
+            "VOLUME": True,
+            "AGING_MEDIO_DIAS": True,
+            "SCORE": True,
+            "PERFIL": False,
+        },
+        labels={
+            "VOLUME": "Volume de chamados",
+            "AGING_MEDIO_DIAS": "Rapidez (aging médio em dias, menor é melhor)",
+            "PERFIL": "Score / Quadrante",
+        },
+        template="plotly_white",
+        title="Customer Relationship Matrix · Volume x Rapidez",
+    )
+
+    fig.update_traces(
+        textposition="top center",
+        marker=dict(line=dict(color="#FFFFFF", width=1)),
+    )
+    fig.add_vline(
+        x=volume_corte,
+        line_dash="dash",
+        line_color="#64748B",
+        annotation_text="Corte de volume",
+        annotation_position="top left",
+    )
+    fig.add_hline(
+        y=aging_corte,
+        line_dash="dash",
+        line_color="#64748B",
+        annotation_text="Corte de rapidez",
+        annotation_position="bottom left",
+    )
+
+    fig.update_layout(
+        height=520,
+        legend_title_text="Quadrante / Score",
+        title=dict(x=0.5, xanchor="center"),
+        font=dict(family="IBM Plex Sans, Segoe UI, sans-serif"),
+        hoverlabel=dict(bgcolor="white", font_size=12),
+    )
+    fig.update_xaxes(title="Volume de chamados")
+    fig.update_yaxes(
+        autorange="reversed",
+        title="Rapidez (aging médio em dias, menor é melhor)",
+    )
+    return fig
+
+
+def customer_relationship_monthly_score_chart(df: pd.DataFrame) -> Any:
+    """Monthly score trend for each SAW with colored score bands."""
+    monthly = get_customer_relationship_monthly_scores(df)
+    if monthly.empty:
+        return None
+
+    fig = px.line(
+        monthly,
+        x="ANO_MES",
+        y="SCORE",
+        color="MANTENEDOR",
+        markers=True,
+        hover_data={
+            "MANTENEDOR": True,
+            "VOLUME": True,
+            "AGING_MEDIO_DIAS": True,
+            "SCORE": True,
+            "PERFIL": True,
+        },
+        labels={
+            "ANO_MES": "Mês",
+            "SCORE": "Score",
+            "MANTENEDOR": "SAW",
+        },
+        template="plotly_white",
+        title="Evolução Mensal de Score por SAW",
+    )
+
+    for score, color in RELATIONSHIP_SCORE_BAND_COLORS.items():
+        fig.add_shape(
+            type="rect",
+            xref="paper",
+            x0=0,
+            x1=1,
+            yref="y",
+            y0=score - 0.5,
+            y1=score + 0.5,
+            fillcolor=color,
+            line_width=0,
+            layer="below",
+        )
+
+    fig.update_layout(
+        height=520,
+        title=dict(x=0.5, xanchor="center"),
+        hovermode="x unified",
+        legend_title_text="SAW",
+        font=dict(family="IBM Plex Sans, Segoe UI, sans-serif"),
+    )
+    fig.update_yaxes(
+        range=[0.8, 4.2],
+        tickvals=[1, 2, 3, 4],
+        ticktext=["1", "2", "3", "4"],
+        title="Score (1 melhor → 4 pior)",
+    )
+    fig.update_xaxes(title="Mês")
     return fig
 
 

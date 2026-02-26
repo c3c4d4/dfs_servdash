@@ -181,6 +181,69 @@ def kpi_section(df):
         vz.render_model_distribution_bars(model_metrics)
 
 
+def render_customer_relationship_section(df: pd.DataFrame):
+    """Render customer relationship matrix and monthly SAW score trends."""
+    st.markdown(
+        """
+        <style>
+        .crm-header {
+            border: 1px solid #d5e3f0;
+            border-radius: 14px;
+            padding: 0.9rem 1rem;
+            background: linear-gradient(120deg, #f4faf7 0%, #f7f8ff 55%, #fff7f5 100%);
+            margin-bottom: 0.6rem;
+        }
+        .crm-title {
+            color: #133b4a;
+            font-weight: 700;
+            font-size: 1.02rem;
+            margin: 0;
+            font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+        }
+        .crm-subtitle {
+            color: #51677d;
+            margin: 0.2rem 0 0 0;
+            font-size: 0.9rem;
+            line-height: 1.35;
+            font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+        }
+        </style>
+        <div class="crm-header">
+            <p class="crm-title">Customer Relationship Matrix</p>
+            <p class="crm-subtitle">
+                Score 1: alto volume + alta rapidez · Score 2: baixo volume + alta rapidez ·
+                Score 3: baixo volume + baixa rapidez · Score 4: alto volume + baixa rapidez.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    periodo = st.radio(
+        "Período",
+        options=["Últimos 6 meses", "Último ano", "All time"],
+        horizontal=True,
+        key="crm_periodo",
+    )
+    df_rel = vz.filter_customer_relationship_period(df, periodo)
+
+    if df_rel.empty:
+        st.info("Sem dados válidos para montar a matriz no período selecionado.")
+        return
+
+    fig_matrix = vz.customer_relationship_matrix_chart(df_rel)
+    if fig_matrix is not None:
+        st.plotly_chart(fig_matrix, width="stretch")
+    else:
+        st.info("Não foi possível montar a matriz de relacionamento.")
+
+    fig_monthly = vz.customer_relationship_monthly_score_chart(df_rel)
+    if fig_monthly is not None:
+        st.plotly_chart(fig_monthly, width="stretch")
+    else:
+        st.info("Sem histórico mensal suficiente para calcular score por SAW.")
+
+
 def main():
     # Load data with optimizations
     df = load_and_merge_chamados()
@@ -344,6 +407,9 @@ def main():
     # --- TAB 3: CHARTS ---
     with tab_charts:
         st.subheader("Análise Detalhada de Performance")
+
+        render_customer_relationship_section(df_filtrado)
+        st.markdown("---")
 
         # Performance charts
         col1, col2 = st.columns(2)
