@@ -2,7 +2,7 @@ import json
 
 import plotly.express as px
 import pandas as pd
-from typing import Dict, Any, TypedDict, Tuple
+from typing import Dict, Any, TypedDict, Tuple, Optional
 import streamlit as st
 from constants import MAIN_MODELS
 
@@ -393,23 +393,43 @@ def get_customer_relationship_monthly_scores(df: pd.DataFrame) -> pd.DataFrame:
     return monthly
 
 
-def customer_relationship_matrix_chart(df: pd.DataFrame) -> Any:
+def customer_relationship_matrix_chart(
+    df: pd.DataFrame, mantenedor_destaque: Optional[str] = None
+) -> Any:
     """Scatter matrix by maintainer with score classification."""
     matrix, volume_corte, aging_corte = get_customer_relationship_matrix_data(df)
     if matrix.empty:
         return None
+
+    matrix_plot = matrix.copy()
+    # Small jitter avoids complete overlap when maintainers have identical coordinates.
+    matrix_plot["DUP_COUNT"] = matrix_plot.groupby(["VOLUME", "AGING_MEDIO_DIAS"])[
+        "MANTENEDOR"
+    ].transform("size")
+    matrix_plot["DUP_IDX"] = matrix_plot.groupby(["VOLUME", "AGING_MEDIO_DIAS"]).cumcount()
+    x_span = max(float(matrix_plot["VOLUME"].max() - matrix_plot["VOLUME"].min()), 1.0)
+    y_span = max(
+        float(
+            matrix_plot["AGING_MEDIO_DIAS"].max() - matrix_plot["AGING_MEDIO_DIAS"].min()
+        ),
+        1.0,
+    )
+    matrix_plot["VOLUME_PLOT"] = matrix_plot["VOLUME"] + (
+        matrix_plot["DUP_IDX"] - (matrix_plot["DUP_COUNT"] - 1) / 2
+    ) * x_span * 0.012
+    matrix_plot["AGING_PLOT"] = matrix_plot["AGING_MEDIO_DIAS"] + (
+        matrix_plot["DUP_IDX"] - (matrix_plot["DUP_COUNT"] - 1) / 2
+    ) * y_span * 0.012
 
     color_map = {
         RELATIONSHIP_SCORE_LABELS[k]: v for k, v in RELATIONSHIP_SCORE_COLORS.items()
     }
 
     fig = px.scatter(
-        matrix,
-        x="VOLUME",
-        y="AGING_MEDIO_DIAS",
-        size="VOLUME",
+        matrix_plot,
+        x="VOLUME_PLOT",
+        y="AGING_PLOT",
         color="PERFIL",
-        text="MANTENEDOR",
         category_orders={"PERFIL": list(RELATIONSHIP_SCORE_LABELS.values())},
         color_discrete_map=color_map,
         hover_data={
@@ -418,46 +438,72 @@ def customer_relationship_matrix_chart(df: pd.DataFrame) -> Any:
             "AGING_MEDIO_DIAS": True,
             "SCORE": True,
             "PERFIL": False,
+            "VOLUME_PLOT": False,
+            "AGING_PLOT": False,
+            "DUP_COUNT": False,
+            "DUP_IDX": False,
         },
         labels={
-            "VOLUME": "Volume de chamados",
-            "AGING_MEDIO_DIAS": "Rapidez (aging médio em dias, menor é melhor)",
+            "VOLUME_PLOT": "VOLUME",
+            "AGING_PLOT": "RAPIDEZ",
             "PERFIL": "Score / Quadrante",
         },
         template="plotly_white",
-        title="Customer Relationship Matrix · Volume x Rapidez",
     )
 
     fig.update_traces(
-        textposition="top center",
-        marker=dict(line=dict(color="#FFFFFF", width=1)),
+        marker=dict(size=14, opacity=0.88, line=dict(color="#FFFFFF", width=1.2)),
     )
+    if mantenedor_destaque:
+        destaque = matrix_plot[matrix_plot["MANTENEDOR"] == mantenedor_destaque]
+        if not destaque.empty:
+            row = destaque.iloc[0]
+            fig.add_scatter(
+                x=[row["VOLUME_PLOT"]],
+                y=[row["AGING_PLOT"]],
+                mode="markers+text",
+                text=[row["MANTENEDOR"]],
+                textposition="top center",
+                marker=dict(
+                    size=22,
+                    color="#0F172A",
+                    line=dict(color="#FFFFFF", width=2),
+                    symbol="diamond",
+                ),
+                name="Mantenedor selecionado",
+                hovertemplate=(
+                    f"<b>{row['MANTENEDOR']}</b><br>"
+                    f"VOLUME: {row['VOLUME']}<br>"
+                    f"RAPIDEZ (dias): {row['AGING_MEDIO_DIAS']}<br>"
+                    f"SCORE: {row['SCORE']}<extra></extra>"
+                ),
+            )
+
     fig.add_vline(
         x=volume_corte,
         line_dash="dash",
         line_color="#64748B",
-        annotation_text="Corte de volume",
+        annotation_text="Corte",
         annotation_position="top left",
     )
     fig.add_hline(
         y=aging_corte,
         line_dash="dash",
         line_color="#64748B",
-        annotation_text="Corte de rapidez",
+        annotation_text="Corte",
         annotation_position="bottom left",
     )
 
     fig.update_layout(
-        height=520,
+        height=620,
         legend_title_text="Quadrante / Score",
-        title=dict(x=0.5, xanchor="center"),
         font=dict(family="IBM Plex Sans, Segoe UI, sans-serif"),
         hoverlabel=dict(bgcolor="white", font_size=12),
     )
-    fig.update_xaxes(title="Volume de chamados")
+    fig.update_xaxes(title="VOLUME")
     fig.update_yaxes(
         autorange="reversed",
-        title="Rapidez (aging médio em dias, menor é melhor)",
+        title="RAPIDEZ",
     )
     return fig
 
